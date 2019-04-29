@@ -18,6 +18,10 @@ HMIDIOUT mIN = 0;
 
 class PIANOROLL;
 class NOTE;
+
+
+
+
 class PIANOROLLCALLBACK
 {
 public:
@@ -32,31 +36,103 @@ public:
 
 };
 
+
+class FRACTION
+{
+public:
+	mutable int n = 0;
+	mutable int d = 1;
+
+	static void Om(const FRACTION& f1, const FRACTION& f2)
+	{
+		if (f1.d == f2.d)
+			return;
+		f1.bmul(f2.d);
+		f2.bmul(f1.d);
+		return;
+	}
+
+	float r()
+	{
+		if (!d)
+			return 0; // whops
+		return (float)n / (float)d;
+	}
+
+	FRACTION(int nu = 0, int de = 1)
+	{
+		n = nu;
+		d = de;
+	}
+
+	const FRACTION& bmul(int de) const
+	{
+		n *= de;
+		n *= de;
+		return *this;
+	}
+
+	bool operator <(FRACTION& f)
+	{
+		Om(*this, f);
+		if (n < f.n)
+			return true;
+		return false;
+	}
+};
+
+FRACTION operator +(const FRACTION& a, const FRACTION& b)
+{
+	FRACTION::Om(a, b);
+	FRACTION f(a.n + b.n, a.d);
+	return f;
+}
+
+class POSITION
+{
+	public:
+		size_t m = 0;
+		FRACTION f;
+		int noteht = 0;
+
+		bool operator <(const POSITION& p)
+		{
+			FRACTION f1 = FRACTION(m) + f;
+			FRACTION f2 = FRACTION(p.m) + p.f;
+			if (f1 < f2)
+				return true;
+			return false;
+		}
+
+		bool operator >(const POSITION& p)
+		{
+			return !operator <(p);
+		}
+};
+
+class DURATION
+{
+	public:
+		FRACTION f;
+};
+
 class NOTE
 {
 public:
 
 	int midi = 0;
 	int Selected = 0;
-	size_t startmeasure = 0;
-	size_t startbeat = 0;
-	size_t endmeasure = 0;
-	size_t endbeat = 0;
-	int startdiv = 0;
-	int enddiv = 0;
+	POSITION p;
+	DURATION d;
 	int vel = 127;
 
 	D2D1_RECT_F dr;
 
 	bool operator <(const NOTE& n2)
 	{
-		if (startmeasure < n2.startmeasure)
+		if (p < n2.p)
 			return true;
-		if (startmeasure > n2.startmeasure)
-			return false;
-		if (startbeat < n2.startbeat)
-			return true;
-		if (startbeat > n2.startbeat)
+		if (p > n2.p)
 			return false;
 		if (midi < n2.midi)
 			return true;
@@ -235,15 +311,6 @@ private:
 	};
 	vector<DRAWNNOTES> DrawedNotes;
 
-	class NOTEPOS
-	{
-	public:
-
-		int n = 0;
-		size_t nm = (size_t)-1;
-		size_t nb = (size_t)-1;
-	};
-
 	float HeightScale = 1.0;
 	float bw = 60.0f;
 	float BarStroke = 1.0;
@@ -360,15 +427,17 @@ private:
 	CComPtr<ID2D1SolidColorBrush> NoteBrush3;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush4;
 	unsigned int snapres = 1;
+	signed int noteres = 1; // bars 
 	SIDEDRAW side;
 	TOPDRAW top;
 	int MaxUndoLevel = 100;
 	int BarMoving = false;
 	int Selecting = false;
+	NOTE* NoteDragging = 0;
 	int PianoClicking = false;
 	POINT LastClick;
 	int PianoNoteClicked = -1;
-	NOTEPOS LastClickN;
+	POSITION LastClickN;
 	D2D1_RECT_F SelectRect;
 
 	CComPtr<ID2D1SolidColorBrush> GetD2SolidBrush(ID2D1RenderTarget*p,D2D1_COLOR_F cc)
@@ -452,11 +521,10 @@ public:
 	}
 
 
-	NOTEPOS MeasureAndBarHitTest(float width)
+	POSITION MeasureAndBarHitTest(float width)
 	{
-		NOTEPOS np;
-		np.nm = (size_t)-1;
-		np.nb = (size_t)-1;
+		POSITION np;
+		np.m = (size_t)-1;
 
 		for (auto& dd : DrawnMeasures)
 		{
@@ -466,7 +534,7 @@ public:
 				continue;
 
 			// This is it
-			np.nm = dd.im;
+			np.m = dd.im;
 			for (size_t y = 0; y < dd.Beats.size(); y++)
 			{
 				auto& b = dd.Beats[y];
@@ -474,7 +542,19 @@ public:
 					continue;
 				if (b.full.right < width)
 					continue;
-				np.nb = y;
+//				np.beatht = y;
+
+				// Calculate Also the fraction
+				np.f.d = snapres*dd.Beats.size();
+				float widthpersnap = (dd.full.right - dd.full.left) / np.f.d;
+				for (auto nn = 0; nn < np.f.d; nn++)
+				{
+					if (width >= ((nn * widthpersnap) + dd.full.left))
+						np.f.n = nn;
+					else
+						break;
+				}
+
 				return np;
 			}
 		}
@@ -482,13 +562,8 @@ public:
 		return np;
 	}
 
-	NOTEPOS MidiHitTest(float height)
+	int MidiHitTest(float height)
 	{
-		NOTEPOS np;
-		np.n = 0;
-		np.nm = (size_t)-1;
-		np.nb = (size_t)-1;
-
 		for (size_t i = 0; i < DrawedNotes.size(); i++)
 		{
 			auto& dd = DrawedNotes[i];
@@ -497,10 +572,9 @@ public:
 			if (dd.full.bottom < height)
 				continue;
 
-			np.n = dd.n;
-			return np;
+			return dd.n;
 		}
-		return np;
+		return -1;
 	}
 
 	float HeightAtNote(int n)
@@ -576,6 +650,19 @@ public:
 				return;
 			}
 		}
+
+		if (ww >= '1' && ww <= '4')
+		{
+			if (!Control)
+			{
+				if (ww == '1') noteres = -1;
+				if (ww == '2') noteres = -2;
+				if (ww == '3') noteres = -3;
+				if (ww == '4') noteres = -4;
+			}
+		}
+
+
 		if (ww == 'A' && Control)
 		{
 			for (auto& n : notes)
@@ -585,22 +672,22 @@ public:
 		}
 		if (ww == 'V' && Control)
 		{
-			if (clip.empty() || LastClickN.nb == -1)
+			if (clip.empty() || LastClickN.m == -1)
 				return;
 
 			NOTE first = clip[0];
-			int di = first.midi - LastClickN.n;
-			int im = first.startmeasure -= LastClickN.nm;
+			int di = first.midi - LastClickN.noteht;
+			int im = first.p.m - LastClickN.m;
 			PushUndo();
 			for (auto& n : clip)
 			{
 				NOTE n2 = n;
 				// Note, and position that changes
 				n2.midi -= di;
-				n2.startmeasure -= im;
-				n2.endmeasure -= im;
+				n2.p.m -= im;
 				notes.push_back(n2);
 			}
+
 			std::sort(notes.begin(), notes.end());
 			Redraw();
 			return;
@@ -846,7 +933,7 @@ public:
 				if (InRect(SelectRect, n.dr.right, n.dr.bottom))
 					n.Selected = true;
 				else
-				if (InRect(SelectRect, n.dr.left, n.dr.top))
+				if (InRect(SelectRect,(FLOAT)n.dr.left, (FLOAT)n.dr.top))
 					n.Selected = true;
 				else
 				{
@@ -898,6 +985,24 @@ public:
 
 			return;
 		}
+
+		if (NoteDragging)
+		{
+			auto hp = MeasureAndBarHitTest(xx);
+			NOTE nx = *NoteDragging;
+			nx.p.m = hp.m;
+			nx.p.f = hp.f;
+
+			int np = MidiHitTest(yy);
+			nx.midi = np;
+			for (auto c : cb)
+			{
+				if (FAILED(c->OnNoteChange(this, NoteDragging,&nx)))
+					return;
+			}
+			*NoteDragging = nx;
+			Redraw();
+		}
 	}
 
 	void LeftUp(WPARAM, LPARAM)
@@ -907,7 +1012,9 @@ public:
 			for (auto c : cb)
 				c->OnPianoOff(this, PianoNoteClicked);
 		}
+		NoteDragging = 0;
 		Selecting = false;
+		SelectRect.left = SelectRect.top = SelectRect.right = SelectRect.bottom = 0;
 		PianoNoteClicked = -1;
 		PianoClicking = false;
 		BarMoving = false;
@@ -996,18 +1103,27 @@ public:
 			swprintf_s(re, L"Beats (This Measure only)\t" );
 			AppendMenu(m, MF_STRING, 5, re);
 			AppendMenu(m, MF_SEPARATOR, 0, L"");
-			swprintf_s(re, L"Resolution /1\tCtrl+1");
+			swprintf_s(re, L"Snap Resolution /1\tCtrl+1");
 			AppendMenu(m, MF_STRING, 21, re);
-			swprintf_s(re, L"Resolution /2\tCtrl+2");
+			swprintf_s(re, L"Snap Resolution /2\tCtrl+2");
 			AppendMenu(m, MF_STRING, 22, re);
-			swprintf_s(re, L"Resolution /3\tCtrl+3");
+			swprintf_s(re, L"Snap Resolution /3\tCtrl+3");
 			AppendMenu(m, MF_STRING, 23, re);
-			swprintf_s(re, L"Resolution /4\tCtrl+4");
+			swprintf_s(re, L"Snap Resolution /4\tCtrl+4");
 			AppendMenu(m, MF_STRING, 24, re);
-			swprintf_s(re, L"Resolution /5\tCtrl+5");
+			swprintf_s(re, L"Snap Resolution /5\tCtrl+5");
 			AppendMenu(m, MF_STRING, 25, re);
-			swprintf_s(re, L"Resolution /6\tCtrl+6");
+			swprintf_s(re, L"Snap Resolution /6\tCtrl+6");
 			AppendMenu(m, MF_STRING, 26, re);
+			AppendMenu(m, MF_SEPARATOR, 0, L"");
+			swprintf_s(re, L"Next Note 1 Beat\t1");
+			AppendMenu(m, MF_STRING, 31, re);
+			swprintf_s(re, L"Next Note 2 Beats\t2");
+			AppendMenu(m, MF_STRING, 32, re);
+			swprintf_s(re, L"Next Note 3 Beats\t3");
+			AppendMenu(m, MF_STRING, 33, re);
+			swprintf_s(re, L"Next Note 4 Beats\t4");
+			AppendMenu(m, MF_STRING, 34, re);
 			POINT p;
 			GetCursorPos(&p);
 			int tcmd = TrackPopupMenu(m, TPM_CENTERALIGN | TPM_RETURNCMD, p.x, p.y, 0, hParent, 0);
@@ -1036,7 +1152,7 @@ public:
 
 				TIME t;
 				t.nb = nb;
-				t.atm = hp.nm;
+				t.atm = hp.m;
 				Times.push_back(t);
 				std::sort(Times.begin(), Times.end());
 				Redraw();
@@ -1046,6 +1162,10 @@ public:
 				snapres = tcmd - 20;
 				Redraw();
 			}
+			if (tcmd == 31) noteres = -1;
+			if (tcmd == 32) noteres = -2;
+			if (tcmd == 33) noteres = -3;
+			if (tcmd == 34) noteres = -4;
 		}
 
 
@@ -1058,7 +1178,7 @@ public:
 	{
 		Selecting = false;
 		LastClickN = MeasureAndBarHitTest(LOWORD(ll));
-		LastClickN.n = MidiHitTest(HIWORD(ll)).n;
+		LastClickN.noteht = MidiHitTest(HIWORD(ll));
 		LastClick.x = LOWORD(ll);
 		LastClick.y = HIWORD(ll);
 		// Bar
@@ -1123,6 +1243,7 @@ public:
 		{
 			notes[ni].Selected = !notes[ni].Selected;
 			Need = true;
+			NoteDragging = &notes[ni];
 			for (auto c : cb)
 				c->OnNoteSelect(this, &notes[ni], notes[ni].Selected);
 		}
@@ -1157,17 +1278,27 @@ public:
 
 		auto e1 = MeasureAndBarHitTest(LOWORD(ll));
 		auto e2 = MidiHitTest(HIWORD(ll));
-		if (e1.nm != -1 && e2.n > 0)
+		if (e1.m != -1 && e2 > 0)
 		{
+			auto msr = DrawnMeasureByIndex(e1.m);
+			if (!msr)
+				return;
 			// Insert note
 			NOTE nx;
-			nx.midi = e2.n;
-			nx.startbeat = (size_t)e1.nb;
-			nx.startmeasure = e1.nm;
-			nx.startdiv = 0;
-			nx.endbeat = (size_t)e1.nb;
-			nx.endmeasure = e1.nm;
-			nx.enddiv = 1;
+			nx.midi = e2;
+			nx.p.m = e1.m;
+			nx.p.f = e1.f;
+			if (noteres < 0)
+			{
+				nx.d.f.n = abs(noteres);
+				nx.d.f.d = msr->Beats.size();
+			}
+			else
+			{
+				nx.d.f.n = 1;
+				nx.d.f.d = msr->Beats.size()*noteres;
+			}
+
 			for (auto c : cb)
 			{
 				if (FAILED(c->NoteAdded(this,&nx)))
@@ -1465,7 +1596,7 @@ public:
 		size_t LastMeasureWithNote = 0;
 		if (!notes.empty())
 		{
-			LastMeasureWithNote = notes[notes.size() - 1].endmeasure;
+			LastMeasureWithNote = notes[notes.size() - 1].p.m;
 		}
 
 		for (auto m = 0 ; ; m++)
@@ -1552,37 +1683,27 @@ public:
 		{
 			n.dr.right = 0;
 			n.dr.bottom = 0;
-			auto msrbegin = DrawnMeasureByIndex(n.startmeasure);
+			auto msrbegin = DrawnMeasureByIndex(n.p.m);
 			if (!msrbegin)
 				continue;
 			auto& msr = *msrbegin;
-			if (n.startbeat >= msr.Beats.size())
-				continue;
-			auto& startbeat = msr.Beats[n.startbeat];
+			D2D1_RECT_F f = msr.full;
+
+			float fwi = (f.right - f.left);
+			fwi = fwi * n.p.f.r();
+
+			f.left += fwi;
+			f.right = f.left + bw * msrbegin->Beats.size() * n.d.f.r();
+
 			// Find the note
 			if ((n.midi - FirstNote) >= DrawedNotes.size())
 				continue;
 			auto& dn = DrawedNotes[n.midi - FirstNote];
 
-
-			D2D1_RECT_F f = msr.full;
-			f.left = startbeat.full.left;
 			// Adjust
 			f.top = dn.full.top;
 			f.bottom = dn.full.bottom;
 
-//			size_t ie = n.endmeasure;
-			auto msrend = DrawnMeasureByIndex(n.endmeasure);
-			if (!msrend)
-				msrend = &DrawnMeasures[DrawnMeasures.size() - 1];
-			auto& msend = *msrend;
-			f.right = msend.full.right;
-			if (n.endbeat >= msend.Beats.size())
-				continue;
-			f.right = msend.Beats[n.endbeat].full.right;
-
-
-			
 			//f.left = msr.full;
 			if (n.Selected)
 				p->FillRectangle(f, NoteBrush2);
