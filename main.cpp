@@ -194,6 +194,12 @@ private:
 	public:
 		size_t atm = 0;
 		int nb = 4;
+		bool operator<(const TIME& t)
+		{
+			if (atm < t.atm)
+				return true;
+			return false;
+		}
 	};
 
 
@@ -251,7 +257,7 @@ private:
 	D2D1_COLOR_F note3color = { 0.1f,0.2f,0.4f,0.3f };
 	D2D1_COLOR_F note4color = { 0.1f,0.2f,0.4f,0.9f };
 	D2D1_COLOR_F linecolor = { 0.5f,0.7f,0.3f,0.8f };
-	D2D1_COLOR_F snaplinecolor = { 0.3f,0.3f,0.3f,0.4f };
+	D2D1_COLOR_F snaplinecolor = { 0.3f,0.6f,0.6f,0.8f };
 	int Direction = 0; // 0 up, 1 down
 	int FirstNote = 48;
 	int ScrollX = 0;
@@ -268,10 +274,14 @@ private:
 	void CreateScale(int k, int m, vector<int>& midis)
 	{
 		midis.clear();
-		int fi = 0; // C
+		unsigned int fi = 0x48; // C
 		if (k > 0)
 			fi = (7 * k)%12;
 
+		if (m == 1)
+			fi -= 3;
+
+		fi = fi % 12;
 		if (m == 1)
 		{
 			Scale.push_back(fi);
@@ -332,6 +342,7 @@ private:
 	*/}
 
 	vector<NOTE> notes;
+	vector<NOTE> clip;
 	stack<vector<NOTE>> undo;
 	stack<vector<NOTE>> redo;
 	RECT rdr;
@@ -348,14 +359,17 @@ private:
 	CComPtr<ID2D1SolidColorBrush> NoteBrush2;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush3;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush4;
-	unsigned int snapres = 2;
+	unsigned int snapres = 1;
 	SIDEDRAW side;
 	TOPDRAW top;
 	int MaxUndoLevel = 100;
 	int BarMoving = false;
+	int Selecting = false;
 	int PianoClicking = false;
 	POINT LastClick;
 	int PianoNoteClicked = -1;
+	NOTEPOS LastClickN;
+	D2D1_RECT_F SelectRect;
 
 	CComPtr<ID2D1SolidColorBrush> GetD2SolidBrush(ID2D1RenderTarget*p,D2D1_COLOR_F cc)
 	{
@@ -502,7 +516,7 @@ public:
 		TIME tt;
 		for (auto& t : Times)
 		{
-			if (t.atm < im)
+			if (t.atm <= im)
 				tt = t;
 		}
 		return tt;
@@ -553,6 +567,58 @@ public:
 		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
 		bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
 
+		if (ww >= '1' && ww <= '6' )
+		{
+			if (Control)
+			{
+				snapres = ww - '1' + 1;
+				Redraw();
+				return;
+			}
+		}
+		if (ww == 'A' && Control)
+		{
+			for (auto& n : notes)
+				n.Selected = true;
+			Redraw();
+			return;
+		}
+		if (ww == 'V' && Control)
+		{
+			if (clip.empty() || LastClickN.nb == -1)
+				return;
+
+			NOTE first = clip[0];
+			int di = first.midi - LastClickN.n;
+			int im = first.startmeasure -= LastClickN.nm;
+			PushUndo();
+			for (auto& n : clip)
+			{
+				NOTE n2 = n;
+				// Note, and position that changes
+				n2.midi -= di;
+				n2.startmeasure -= im;
+				n2.endmeasure -= im;
+				notes.push_back(n2);
+			}
+			std::sort(notes.begin(), notes.end());
+			Redraw();
+			return;
+		}
+		if (ww == 'C' && Control)
+		{
+			clip.clear();
+			for (auto& n : notes)
+			{
+				if (n.Selected)
+				{
+					clip.push_back(n);
+					n.Selected = false;
+				}
+			}
+			Redraw();
+			return;
+		}
 		if (ww == 'Z' && Control)
 		{
 			Undo();
@@ -754,6 +820,44 @@ public:
 
 	void MouseMove(WPARAM, LPARAM ll)
 	{
+		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+		int xx = LOWORD(ll);
+		int yy = HIWORD(ll);
+		if (Selecting)
+		{
+			D2D1_RECT_F& d3 = SelectRect;
+			d3.left = LastClick.x;
+			d3.right = xx;
+			if (xx < LastClick.x)
+			{
+				d3.right = LastClick.x;
+				d3.left = xx;
+			}
+			d3.top = LastClick.y;
+			d3.bottom = yy;
+			if (yy < LastClick.y)
+			{
+				d3.bottom = LastClick.y;
+				d3.top = yy;
+			}
+
+			for (auto& n : notes)
+			{
+				if (InRect(SelectRect, n.dr.right, n.dr.bottom))
+					n.Selected = true;
+				else
+				if (InRect(SelectRect, n.dr.left, n.dr.top))
+					n.Selected = true;
+				else
+				{
+					if (!Shift)
+						n.Selected = false;
+				}
+			}
+
+			Redraw();
+			return;
+		}
 		if (BarMoving)
 		{
 			int nx = LOWORD(ll);
@@ -803,6 +907,7 @@ public:
 			for (auto c : cb)
 				c->OnPianoOff(this, PianoNoteClicked);
 		}
+		Selecting = false;
 		PianoNoteClicked = -1;
 		PianoClicking = false;
 		BarMoving = false;
@@ -811,6 +916,7 @@ public:
 
 	void RightDown(WPARAM, LPARAM ll)
 	{
+		auto hp = MeasureAndBarHitTest(LOWORD(ll));
 		LastClick.x = LOWORD(ll);
 		LastClick.y = HIWORD(ll);
 
@@ -882,6 +988,26 @@ public:
 			wchar_t re[1000] = { 0 };
 			swprintf_s(re, L"Key...(Current: %i)\t", Key);
 			AppendMenu(m, MF_STRING, 1, re);
+			AppendMenu(m, MF_STRING, 2, L"Mode Major");
+			AppendMenu(m, MF_STRING, 3, L"Mode Minor");
+			AppendMenu(m, MF_SEPARATOR, 0, L"");
+			swprintf_s(re, L"Beats (From now on)\t");
+			AppendMenu(m, MF_STRING, 4, re);
+			swprintf_s(re, L"Beats (This Measure only)\t" );
+			AppendMenu(m, MF_STRING, 5, re);
+			AppendMenu(m, MF_SEPARATOR, 0, L"");
+			swprintf_s(re, L"Resolution /1\tCtrl+1");
+			AppendMenu(m, MF_STRING, 21, re);
+			swprintf_s(re, L"Resolution /2\tCtrl+2");
+			AppendMenu(m, MF_STRING, 22, re);
+			swprintf_s(re, L"Resolution /3\tCtrl+3");
+			AppendMenu(m, MF_STRING, 23, re);
+			swprintf_s(re, L"Resolution /4\tCtrl+4");
+			AppendMenu(m, MF_STRING, 24, re);
+			swprintf_s(re, L"Resolution /5\tCtrl+5");
+			AppendMenu(m, MF_STRING, 25, re);
+			swprintf_s(re, L"Resolution /6\tCtrl+6");
+			AppendMenu(m, MF_STRING, 26, re);
 			POINT p;
 			GetCursorPos(&p);
 			int tcmd = TrackPopupMenu(m, TPM_CENTERALIGN | TPM_RETURNCMD, p.x, p.y, 0, hParent, 0);
@@ -894,7 +1020,32 @@ public:
 				Key = _wtoi(re);
 				CreateScale(Key, Mode, Scale);
 			}
+			if (tcmd == 2 || tcmd == 3)
+			{
+				Mode = (tcmd == 2) ? 0 : 1;
+				CreateScale(Key, Mode, Scale);
+			}
+			if (tcmd == 4)
+			{
+				swprintf_s(re, L"%i", Key);
+				if (!AskText(hParent, L"Beats", L"Enter beats:", re))
+					return;
+				int nb = _wtoi(re);
+				if (!nb)
+					return;
 
+				TIME t;
+				t.nb = nb;
+				t.atm = hp.nm;
+				Times.push_back(t);
+				std::sort(Times.begin(), Times.end());
+				Redraw();
+			}
+			if (tcmd >= 21 && tcmd <= 26)
+			{
+				snapres = tcmd - 20;
+				Redraw();
+			}
 		}
 
 
@@ -905,6 +1056,9 @@ public:
 
 	void LeftDown(WPARAM , LPARAM ll)
 	{
+		Selecting = false;
+		LastClickN = MeasureAndBarHitTest(LOWORD(ll));
+		LastClickN.n = MidiHitTest(HIWORD(ll)).n;
 		LastClick.x = LOWORD(ll);
 		LastClick.y = HIWORD(ll);
 		// Bar
@@ -972,6 +1126,8 @@ public:
 			for (auto c : cb)
 				c->OnNoteSelect(this, &notes[ni], notes[ni].Selected);
 		}
+		else
+			Selecting = true;
 
 		if (Need)
 		{
@@ -1452,9 +1608,14 @@ public:
 		// Side bar
 		PaintSide(p, rc);
 
-
 		// Side bar
 		PaintTop(p, rc);
+
+		if (Selecting)
+		{
+			p->FillRectangle(SelectRect, this->LineBrush);
+
+		}
 
 		p->EndDraw();
 	}
