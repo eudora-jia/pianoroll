@@ -4,7 +4,7 @@
 #pragma comment(lib,"Dwrite.lib")
 #pragma comment(lib,"winmm.lib")
 #include <atlbase.h>
-
+#include ".\\xml\\xml3all.h"
 
 // Todo
 /*
@@ -33,6 +33,8 @@
 
 namespace PR
 {
+	using namespace std;
+
 	class PIANOROLL;
 	class NOTE;
 #ifdef _WIN64
@@ -144,6 +146,18 @@ namespace PR
 	public:
 		mutable ssize_t n = 0;
 		mutable ssize_t d = 1;
+
+		void Ser(XML3::XMLElement& e) const
+		{
+			e.vv("n").SetValueInt((int)n);
+			e.vv("d").SetValueInt((int)d);
+		}
+		void Unser(XML3::XMLElement& e)
+		{
+			n = e.vv("n").GetValueInt();
+			d = e.vv("d").GetValueInt();
+		}
+
 
 		static void Om(const FRACTION& f1, const FRACTION& f2)
 		{
@@ -300,6 +314,17 @@ namespace PR
 		FRACTION f;
 		int noteht = 0;
 
+		void Ser(XML3::XMLElement& e) const
+		{
+			e.vv("m").SetValueULongLong(m);
+			f.Ser(e);
+		}
+		void Unser(XML3::XMLElement& e)
+		{
+			m = e.vv("m").GetValueULongLong();
+			f.Unser(e);
+		}
+
 		bool operator <(const POSITION& p)
 		{
 			if (m < p.m)
@@ -344,6 +369,25 @@ namespace PR
 		int layer = 0;
 
 		D2D1_RECT_F dr;
+
+		void Ser(XML3::XMLElement& e) const
+		{
+			e.vv("l").SetValueInt(layer);
+			e.vv("c").SetValueInt(ch);
+			e.vv("v").SetValueInt(vel);
+			e.vv("m").SetValueInt(midi);
+			p.Ser(e["pos"]);
+			d.Ser(e["dur"]);
+		}
+		void Unser(XML3::XMLElement& e) 
+		{
+			layer = e.vv("l").GetValueInt();
+			ch = e.vv("c").GetValueInt(ch);
+			vel = e.vv("v").GetValueInt(vel);
+			midi = e.vv("m").GetValueInt(midi);
+			p.Unser(e["pos"]);
+			d.Unser(e["dur"]);
+		}
 
 		POSITION EndX() const
 		{
@@ -721,6 +765,7 @@ namespace PR
 
 	public:
 
+
 		PIANOROLL(HWND hp = 0)
 		{
 			hParent = hp;
@@ -728,6 +773,38 @@ namespace PR
 			CursorResize = LoadCursor(0, IDC_SIZEWE);
 			CursorArrow = LoadCursor(0, IDC_HAND);
 		}
+
+		void Ser(XML3::XMLElement& e) const
+		{
+
+			// Side Perc
+			e.vv("SidePerc").SetValueInt(side.PercPos);
+
+			// Notes
+			auto& ee = e["notes"];
+			for (auto& n : notes)
+			{
+				auto& nn = ee.AddElement("n");
+				n.Ser(nn);
+			}
+		}
+
+		void Unser(XML3::XMLElement& e)
+		{
+			// Side Perc
+			side.PercPos = e.vv("SidePerc").GetValueInt(10);
+
+			// Notes
+			auto& ee = e["notes"];
+			for (auto& eee : ee)
+			{
+				NOTE n;
+				n.Unser(eee);
+				notes.push_back(n);
+			}
+			std::sort(notes.begin(), notes.end());
+		}
+
 
 		void SetWindow(HWND hp)
 		{
@@ -1832,6 +1909,15 @@ namespace PR
 				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 
+				if (true)
+				{
+					auto mx = CreatePopupMenu();
+					AppendMenu(mx, MF_STRING, 111, L"Left");
+					AppendMenu(mx, MF_STRING, 112, L"Right");
+					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)mx, L"Piano");
+					AppendMenu(m, MF_SEPARATOR, 0, L"");
+				}
+
 				auto m2 = CreatePopupMenu();
 				swprintf_s(re, L"Set next (Current: %i)\t", NextLayer + 1);
 				AppendMenu(m2, MF_STRING, 6,re);
@@ -1945,6 +2031,17 @@ namespace PR
 				if (tcmd >= 51 && tcmd <= 53)
 				{
 					Tool = tcmd - 51;
+					Redraw();
+				}
+
+				if (tcmd == 111)
+				{
+					side.PercPos = abs(side.PercPos);
+					Redraw();
+				}
+				if (tcmd == 112)
+				{
+					side.PercPos = -abs(side.PercPos);
 					Redraw();
 				}
 
@@ -2387,7 +2484,10 @@ namespace PR
 				p1.y = e.top;
 				p2.x = e.right;
 				p2.y = e.top;
-				p->DrawLine(p1, p2, LineBrush);
+				if ((c1 % 12) == 11)
+					p->DrawLine(p1, p2, LineBrush,2.0f);
+				else
+					p->DrawLine(p1, p2, LineBrush, 1.0f);
 
 				DRAWNNOTES dn;
 				dn.full = e;

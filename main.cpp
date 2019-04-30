@@ -144,6 +144,44 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 	case WM_KEYDOWN:
 	case WM_SYSKEYDOWN:
 	{
+		if (ww == VK_F5)
+		{
+			// Save
+			OPENFILENAME of = { 0 };
+			of.lStructSize = sizeof(of);
+			of.hwndOwner = hh;
+			of.lpstrFilter = L"*.xml\0*.xml\0\0";
+			vector<wchar_t> fnx(10000);
+			of.lpstrFile = fnx.data();
+			of.nMaxFile = 10000;
+			of.lpstrDefExt = L"xml";
+			of.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER;
+			if (!GetSaveFileName(&of))
+				return 0;
+
+			XML3::XML x(fnx.data());
+			prx.Ser(x.GetRootElement());
+			x.Save();
+
+		}
+		if (ww == VK_F7)
+		{
+			// Save
+			OPENFILENAME of = { 0 };
+			of.lStructSize = sizeof(of);
+			of.hwndOwner = hh;
+			of.lpstrFilter = L"*.xml\0*.xml\0\0";
+			vector<wchar_t> fnx(10000);
+			of.lpstrFile = fnx.data();
+			of.nMaxFile = 10000;
+			of.Flags = OFN_FILEMUSTEXIST | OFN_EXPLORER;
+			if (!GetOpenFileName(&of))
+				return 0;
+
+			XML3::XML x(fnx.data());
+			prx.Unser(x.GetRootElement());
+
+		}
 		prx.KeyDown(ww, ll);
 		return 0;
 	}

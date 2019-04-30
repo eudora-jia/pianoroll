@@ -19,6 +19,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Piano side (Left/Right) 
 * Callbacks
 * Tools - Auto, Eraser, Single click entry
+* Serialization/Deserialization to XML
 
 ## Callbacks
 Your callbacks are notified when:
@@ -33,6 +34,7 @@ Your callbacks are notified when:
 * 1,2,3,4 (up row) : Select beat duration for next note
 * Shift+1,2,3,4 (up row) : Beat duration 1/8, 1/16, 1/32,  1/64
 * < and > : Change selected items velocity
+* Ctrl+ < and > : Velocity off/full
 * +/- : Change selected items position diatonically
 * Shift +/- : Change selected items position chromatically
 * Numpad +/-/* : Zoom in,out,all
