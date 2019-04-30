@@ -1,7 +1,7 @@
 # Pianoroll for Windows
 
 A flexible, featured pianoroll control, using Direct2D to paint.
-![alt text](https://raw.githubusercontent.com/username/projectname/branch/path/to/img.png)
+![Pianoroll](https://raw.githubusercontent.com/WindowsNT/pianoroll/master/1.jpg)
 
 ## To use
 
