@@ -552,7 +552,7 @@ namespace PR
 		D2D1_COLOR_F whitecolor = { 1.0f,1.0f,1.0f,1.0f };
 		D2D1_COLOR_F blackcolor = { 0.0f,0.0f,0.0f,1.0f };
 		D2D1_COLOR_F sidecolor = { 0,0.1f,0.1f,1.0f };
-		D2D1_COLOR_F note1color = { 0.8f,0.8f,0.9f,0.5f };
+		D2D1_COLOR_F note1color = { 0.8f,0.8f,0.9f,0.8f };
 		D2D1_COLOR_F note2color = { 0.8f,0.9f,0.0f,0.9f };
 		D2D1_COLOR_F note3color = { 0.1f,0.2f,0.4f,0.3f };
 		D2D1_COLOR_F note4color = { 0.1f,0.2f,0.4f,0.9f };
@@ -2529,10 +2529,14 @@ namespace PR
 				f.bottom = dn.full.bottom;
 
 				//f.left = msr.full;
+				D2D1_ROUNDED_RECT fr;
+				fr.rect = f;
+				fr.radiusX = 4.0f;
+				fr.radiusY = 4.0f;
 				if (n.Selected)
-					p->FillRectangle(f, NoteBrush2);
+					p->FillRoundedRectangle(fr, NoteBrush2);
 				else
-					p->FillRectangle(f, NoteBrush1);
+					p->FillRoundedRectangle(fr, NoteBrush1);
 				n.dr = f;
 
 				// Velocity
