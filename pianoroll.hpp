@@ -1785,48 +1785,65 @@ namespace PR
 				// Selected menu
 				auto m = CreatePopupMenu();
 				wchar_t re[1000] = { 0 };
-				swprintf_s(re, L"Key (Current: %i)\t", Key);
-				AppendMenu(m, MF_STRING, 1, re);
-				AppendMenu(m, MF_STRING, 2, L"Mode Major");
-				AppendMenu(m, MF_STRING, 3, L"Mode Minor");
+
+				auto m1 = CreatePopupMenu();
+				swprintf_s(re, L"Set current (Current: %i)\t", Key);
+				AppendMenu(m1, MF_STRING, 1, re);
+				AppendMenu(m1, MF_STRING, 2, L"Mode Major");
+				AppendMenu(m1, MF_STRING, 3, L"Mode Minor");
+				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
-				swprintf_s(re, L"Next Layer (Current: %i)\t", NextLayer + 1);
-				AppendMenu(m, MF_STRING, 6,re);
+
+				auto m2 = CreatePopupMenu();
+				swprintf_s(re, L"Set next (Current: %i)\t", NextLayer + 1);
+				AppendMenu(m2, MF_STRING, 6,re);
 				swprintf_s(re, L"Next Layer (Use keypad 1-9)\t");
-				AppendMenu(m, MF_STRING, 0, re);
+				AppendMenu(m2, MF_STRING, 0, re);
 				swprintf_s(re, L"Show/Hide Layer (Use Alt+keypad 1-9)\t");
-				AppendMenu(m, MF_STRING, 0, re);
+				AppendMenu(m2, MF_STRING, 0, re);
+				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m2, L"Layer");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
+
 				swprintf_s(re, L"Beats (From this measure on)\t");
 				AppendMenu(m, MF_STRING, 4, re);
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
-				swprintf_s(re, L"Snap Resolution /1\tCtrl+1");
-				AppendMenu(m, MF_STRING, 21, re);
-				swprintf_s(re, L"Snap Resolution /2\tCtrl+2");
-				AppendMenu(m, MF_STRING, 22, re);
-				swprintf_s(re, L"Snap Resolution /3\tCtrl+3");
-				AppendMenu(m, MF_STRING, 23, re);
-				swprintf_s(re, L"Snap Resolution /4\tCtrl+4");
-				AppendMenu(m, MF_STRING, 24, re);
-				swprintf_s(re, L"Snap Resolution /5\tCtrl+5");
-				AppendMenu(m, MF_STRING, 25, re);
-				swprintf_s(re, L"Snap Resolution /6\tCtrl+6");
-				AppendMenu(m, MF_STRING, 26, re);
+
+
+				auto m3 = CreatePopupMenu();
+				swprintf_s(re, L"Resolution /1\tCtrl+1");
+				AppendMenu(m3, MF_STRING, 21, re);
+				swprintf_s(re, L"Resolution /2\tCtrl+2");
+				AppendMenu(m3, MF_STRING, 22, re);
+				swprintf_s(re, L"Resolution /3\tCtrl+3");
+				AppendMenu(m3, MF_STRING, 23, re);
+				swprintf_s(re, L"Resolution /4\tCtrl+4");
+				AppendMenu(m3, MF_STRING, 24, re);
+				swprintf_s(re, L"Resolution /5\tCtrl+5");
+				AppendMenu(m3, MF_STRING, 25, re);
+				swprintf_s(re, L"Resolution /6\tCtrl+6");
+				AppendMenu(m3, MF_STRING, 26, re);
+				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m3, L"Snap");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
-				swprintf_s(re, L"Next Note 1 Beat\t1");
-				AppendMenu(m, MF_STRING, 31, re);
-				swprintf_s(re, L"Next Note 2 Beats\t2");
-				AppendMenu(m, MF_STRING, 32, re);
-				swprintf_s(re, L"Next Note 3 Beats\t3");
-				AppendMenu(m, MF_STRING, 33, re);
-				swprintf_s(re, L"Next Note 4 Beats\t4");
-				AppendMenu(m, MF_STRING, 34, re);
-				swprintf_s(re, L"Next Note 1/2 Beat\tShift+2");
-				AppendMenu(m, MF_STRING, 42, re);
-				swprintf_s(re, L"Next Note 1/3 Beat\tShift+3");
-				AppendMenu(m, MF_STRING, 43, re);
-				swprintf_s(re, L"Next Note 1/4 Beat\tShift+4");
-				AppendMenu(m, MF_STRING, 44, re);
+
+
+				auto m4 = CreatePopupMenu();
+				swprintf_s(re, L"1 Beat\t1");
+				AppendMenu(m4, MF_STRING, 31, re);
+				swprintf_s(re, L"2 Beats\t2");
+				AppendMenu(m4, MF_STRING, 32, re);
+				swprintf_s(re, L"3 Beats\t3");
+				AppendMenu(m4, MF_STRING, 33, re);
+				swprintf_s(re, L"4 Beats\t4");
+				AppendMenu(m4, MF_STRING, 34, re);
+				swprintf_s(re, L"1/2 Beat\tShift+2");
+				AppendMenu(m4, MF_STRING, 42, re);
+				swprintf_s(re, L"1/3 Beat\tShift+3");
+				AppendMenu(m4, MF_STRING, 43, re);
+				swprintf_s(re, L"1/4 Beat\tShift+4");
+				AppendMenu(m4, MF_STRING, 44, re);
+				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m4, L"Next Note size");
+				AppendMenu(m4, MF_SEPARATOR, 0, L"");
+				
 				POINT p;
 				GetCursorPos(&p);
 				int tcmd = TrackPopupMenu(m, TPM_CENTERALIGN | TPM_RETURNCMD, p.x, p.y, 0, hParent, 0);

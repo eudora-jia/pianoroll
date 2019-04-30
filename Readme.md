@@ -15,7 +15,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Supports diatonic movement through specified Key and Mode (Major/Minor)
 * Unlimited undo/redo
 * Unlimited layers
-* Piano 
+* Piano side (Left/Right) 
 * Callbacks
 
 ## Callbacks
