@@ -18,4 +18,9 @@
       <Filter>Code</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="Readme.md">
+      <Filter>Code</Filter>
+    </None>
+  </ItemGroup>
 </Project>
