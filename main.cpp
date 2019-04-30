@@ -19,7 +19,30 @@ HMIDIOUT mIN = 0;
 class PIANOROLL;
 class NOTE;
 
+// Todo
+/*
 
+	Cut
+	Join
+	Split
+	Enlarge
+	Reduce
+	Enlarge to grid
+	Reduce to grid
+	Dot
+	Quantize
+
+	Layers
+	Channels
+
+	Effects
+		Cresc/Dim
+		Humanizator
+		Transposer
+		Stack/Leg
+
+
+*/
 
 
 class PIANOROLLCALLBACK
@@ -254,7 +277,7 @@ private:
 	class TOPDRAW
 	{
 		public:
-			signed int PercPos = 5;
+			signed int he = 15;
 			D2D1_RECT_F full;
 	};
 
@@ -325,6 +348,7 @@ private:
 	D2D1_COLOR_F note4color = { 0.1f,0.2f,0.4f,0.9f };
 	D2D1_COLOR_F linecolor = { 0.5f,0.7f,0.3f,0.8f };
 	D2D1_COLOR_F snaplinecolor = { 0.3f,0.6f,0.6f,0.8f };
+	D2D1_COLOR_F scrollcolor = { 1.0f,1.0f,1.0f,0.3f };
 	int Direction = 0; // 0 up, 1 down
 	int FirstNote = 48;
 	int ScrollX = 0;
@@ -422,6 +446,7 @@ private:
 	CComPtr<ID2D1SolidColorBrush> WhiteBrush;
 	CComPtr<ID2D1SolidColorBrush> BlackBrush;
 	CComPtr<ID2D1SolidColorBrush> SnapLineBrush;
+	CComPtr<ID2D1SolidColorBrush> ScrollBrush;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush1;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush2;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush3;
@@ -659,6 +684,16 @@ public:
 				if (ww == '2') noteres = -2;
 				if (ww == '3') noteres = -3;
 				if (ww == '4') noteres = -4;
+			}
+		}
+
+		if (ww >= '1' && ww <= '4')
+		{
+			if (Shift)
+			{
+				if (ww == '2') noteres = 2;
+				if (ww == '3') noteres = 3;
+				if (ww == '4') noteres = 4;
 			}
 		}
 
@@ -1124,6 +1159,12 @@ public:
 			AppendMenu(m, MF_STRING, 33, re);
 			swprintf_s(re, L"Next Note 4 Beats\t4");
 			AppendMenu(m, MF_STRING, 34, re);
+			swprintf_s(re, L"Next Note 1/2 Beat\tShift+2");
+			AppendMenu(m, MF_STRING, 42, re);
+			swprintf_s(re, L"Next Note 1/3 Beat\tShift+3");
+			AppendMenu(m, MF_STRING, 43, re);
+			swprintf_s(re, L"Next Note 1/4 Beat\tShift+4");
+			AppendMenu(m, MF_STRING, 44, re);
 			POINT p;
 			GetCursorPos(&p);
 			int tcmd = TrackPopupMenu(m, TPM_CENTERALIGN | TPM_RETURNCMD, p.x, p.y, 0, hParent, 0);
@@ -1166,6 +1207,11 @@ public:
 			if (tcmd == 32) noteres = -2;
 			if (tcmd == 33) noteres = -3;
 			if (tcmd == 34) noteres = -4;
+
+			if (tcmd == 42) noteres = 2;
+			if (tcmd == 43) noteres = 3;
+			if (tcmd == 44) noteres = 4;
+
 		}
 
 
@@ -1464,20 +1510,20 @@ public:
 	void PaintTop(ID2D1RenderTarget* p, RECT rc)
 	{
 		// Full
-		if (top.PercPos == 0)
+		if (top.he == 0)
 			return;
-		if (top.PercPos > 0)
+		if (top.he > 0)
 		{
 			top.full.left = (FLOAT)rc.left;
 			if (side.PercPos > 0)
 				top.full.left = side.full.right;
 			top.full.top = (FLOAT)rc.top;
 			top.full.right = (FLOAT)rc.right;
-			top.full.bottom = (FLOAT)(top.PercPos * rc.bottom) / 100.0f;
+			top.full.bottom = top.full.top + top.he;
 		}
 		else
 		{
-			top.full.top = (FLOAT)rc.bottom - (rc.bottom * (-top.PercPos)) / 100;
+			top.full.top = (FLOAT)rc.bottom + top.he;
 			top.full.left = (FLOAT)rc.left;
 			if (side.PercPos > 0)
 				top.full.left = side.full.right;
@@ -1485,7 +1531,11 @@ public:
 			top.full.right = (FLOAT)rc.right;
 		}
 
-		p->FillRectangle(top.full, SideBrush);
+		if (!ScrollBrush)
+			ScrollBrush = GetD2SolidBrush(p, scrollcolor);
+
+
+		p->FillRectangle(top.full, ScrollBrush);
 
 		auto barr = top.full;
 
