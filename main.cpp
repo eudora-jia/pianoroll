@@ -53,6 +53,90 @@ namespace PR
 	typedef long ssize_t;
 #endif
 
+	static void MidiNoteName(wchar_t* s, int mid, int key, int mode)
+	{
+		if (!s)
+			return;
+
+		mid %= 12;
+
+		if (mid == 0) 
+		{
+			wcscpy_s(s, 10, L"C");
+			if (key >= 7 || (key == 4 && mode == 1))
+				wcscpy_s(s, 10, L"B\u266F");
+		}
+		if (mid == 1)
+		{
+			if (key >= 0)
+				wcscpy_s(s, 10, L"C\u266F");
+			else
+				wcscpy_s(s, 10, L"D\u266D");
+		}
+
+		if (mid == 2) wcscpy_s(s, 10, L"D");
+
+		if (mid == 3)
+		{
+			if (key >= 0)
+				wcscpy_s(s, 10, L"D\u266F");
+			else
+				wcscpy_s(s, 10, L"E\u266D");
+		}
+
+		if (mid == 4)
+		{
+			wcscpy_s(s, 10, L"E");
+			if (key <= -7)
+				wcscpy_s(s, 10, L"F\u266D");
+		}
+
+
+		if (mid == 5)
+		{
+			wcscpy_s(s, 10, L"F");
+			if (key >= 6 || (key == 3 && mode == 1))
+				wcscpy_s(s, 10, L"E\u266F");
+		}
+
+		if (mid == 6)
+		{
+			if (key >= 0)
+				wcscpy_s(s, 10, L"F\u266F");
+			else
+				wcscpy_s(s, 10, L"G\u266D");
+		}
+
+		if (mid == 7) wcscpy_s(s, 10, L"G");
+
+		if (mid == 8)
+		{
+			if (key >= 0)
+				wcscpy_s(s, 10, L"G\u266F");
+			else
+				wcscpy_s(s, 10, L"A\u266D");
+		}
+
+		if (mid == 9) wcscpy_s(s, 10, L"A");
+
+		if (mid == 10)
+		{
+			if (key >= 0)
+				wcscpy_s(s, 10, L"A\u266F");
+			else
+				wcscpy_s(s, 10, L"B\u266D");
+		}
+
+		if (mid == 11)
+		{
+			wcscpy_s(s, 10, L"B");
+			if (key <= -6)
+				wcscpy_s(s, 10, L"C\u266D");
+		}
+
+		return;
+	}
+
 	class PIANOROLLCALLBACK
 	{
 	public:
@@ -489,7 +573,7 @@ namespace PR
 		D2D1_COLOR_F scrollcolor = { 1.0f,1.0f,1.0f,0.3f };
 		int Direction = 0; // 0 up, 1 down
 		int FirstNote = 48;
-		int ScrollX = 0;
+		float ScrollX = 0;
 		int Key = 0;
 		int Mode = 0;
 
@@ -745,9 +829,10 @@ namespace PR
 					}
 					else
 					{
+						size_t TotBeats = dd.Beats.size() * snapres;
 						np.f.d = DENOM * snapres;
-						float widthpersnap = (dd.full.right - dd.full.left) / np.f.d;
-						for (auto nn = 0; nn < np.f.d; nn++)
+						float widthpersnap = (dd.full.right - dd.full.left) / TotBeats;
+						for (auto nn = 0; nn < TotBeats ; nn++)
 						{
 							if (width >= ((nn * widthpersnap) + dd.full.left))
 								np.f.n = nn;
@@ -922,8 +1007,6 @@ namespace PR
 					{
 						if (!notes[i].Selected)
 							continue;
-						if (notes[i].layer != NextLayer)
-							continue;
 
 						if (!R)
 							PushUndo();
@@ -1049,7 +1132,8 @@ namespace PR
 							continue;
 
 						// Check gap
-						auto a1 = AbsF(notes[i].EndX());
+						auto p1 = notes[i].EndX();
+						auto a1 = AbsF(p1);
 						auto a2 = AbsF(notes[y].p);
 						if (a1 != a2)
 							continue;
@@ -1203,14 +1287,16 @@ namespace PR
 			}
 			if (ww == VK_RIGHT)
 			{
-				ScrollX += 10;
+				ScrollX += bw;
 				Redraw();
 				return;
 			}
 			if (ww == VK_LEFT)
 			{
-				if (ScrollX >= 10)
-					ScrollX -= 10;
+				if (ScrollX >= bw)
+					ScrollX -= bw;
+				else
+					ScrollX = 0;
 				Redraw();
 				return;
 			}
@@ -1350,6 +1436,7 @@ namespace PR
 					}
 					else
 					{
+						float ScrollXX = (float)ScrollX / (float)bw;
 						if (ww == VK_ADD || ww == VK_OEM_PLUS)
 							bw += 10;
 						if (ww == VK_SUBTRACT || ww == VK_OEM_MINUS)
@@ -1357,6 +1444,7 @@ namespace PR
 							if (bw > 10)
 								bw -= 10;
 						}
+						ScrollX = ScrollXX * (float) bw;
 					}
 				}
 				Redraw();
@@ -1442,7 +1530,11 @@ namespace PR
 			if (BarMoving)
 			{
 				int nx = LOWORD(ll);
-				ScrollX += nx - LastClick.x;
+				int pts = nx - LastClick.x;
+				// Convert these to Viewing
+				// In TopBar full, FullNotesWidth
+				// In This		,  ?
+				ScrollX += TotalWidthForMusic * pts / (top.full.right - top.full.left);
 				if (ScrollX < 0)
 					ScrollX = 0;
 				LastClick.x = nx;
@@ -1506,6 +1598,8 @@ namespace PR
 #endif
 
 				auto hp = MeasureAndBarHitTest((float)xx, Shift);
+				if (hp.m == -1)
+					return;
 				if (ResizingRight)
 				{
 #ifdef _DEBUG
@@ -1715,10 +1809,8 @@ namespace PR
 				swprintf_s(re, L"Show/Hide Layer (Use Alt+keypad 1-9)\t");
 				AppendMenu(m, MF_STRING, 0, re);
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
-				swprintf_s(re, L"Beats (From now on)\t");
+				swprintf_s(re, L"Beats (From this measure on)\t");
 				AppendMenu(m, MF_STRING, 4, re);
-				swprintf_s(re, L"Beats (This Measure only)\t");
-				AppendMenu(m, MF_STRING, 5, re);
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 				swprintf_s(re, L"Snap Resolution /1\tCtrl+1");
 				AppendMenu(m, MF_STRING, 21, re);
@@ -2162,14 +2254,17 @@ namespace PR
 
 			auto barr = top.full;
 
+			float AvW = barr.right - barr.left;
 			// How many measures are max?
 
+			// We need TotalWidthForMusic
+			// we have barr.right - barr.left
 			// Left = the percentage hidden
-			barr.left += ScrollX;
-			if (TotalWidthForMusic > barr.right)
+			barr.left += AvW*((float)ScrollX/(float)TotalWidthForMusic);
+			if (TotalWidthForMusic > AvW)
 			{
-				float P = (float)barr.right / (float)TotalWidthForMusic;
-				barr.right = barr.left + (barr.right - barr.left) * P;
+				float P = (float)AvW/ (float)TotalWidthForMusic;
+				barr.right = barr.left + AvW * P;
 			}
 
 			if (barr.left < top.full.left)
@@ -2180,6 +2275,7 @@ namespace PR
 
 		void PaintInfo(ID2D1RenderTarget* p, RECT rc)
 		{
+			wchar_t ly[200] = { 0 };
 			// Full
 			if (info.he == 0)
 				return;
@@ -2208,11 +2304,22 @@ namespace PR
 			f4.right = info.full.right - 4;
 			f4.top = info.full.top + 2;
 			f4.bottom = info.full.bottom - 2;
-			vector<wchar_t> ly(1000);
-			swprintf_s(ly.data(), 1000, L"L%u - R %s%i", NextLayer + 1, noteres > 0 ? L"1/" : L" ", noteres > 0 ? noteres : -noteres);
+			swprintf_s(ly, 200, L"L%u R%s%i ", NextLayer + 1, noteres > 0 ? L"1/" : L" ", noteres > 0 ? noteres : -noteres);
 			Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 			Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-			p->DrawTextW(ly.data(), (UINT32)wcslen(ly.data()), Text, f4, BlackBrush);
+			p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+
+			// Bar except first
+			for (size_t i = 1 ; i < DrawnMeasures.size() ; i++)
+			{
+				auto& d = DrawnMeasures[i];
+				swprintf_s(ly, 200, L"%llu", (unsigned long long)d.im + 1);
+				D2D1_RECT_F f5 = f4;
+				f5.left = d.full.left;
+				p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f5, BlackBrush);
+
+			}
+
 		}
 
 		void Paint(ID2D1RenderTarget * p, RECT rc, unsigned long long param = 0)
@@ -2367,12 +2474,16 @@ namespace PR
 				}
 				if (End)
 					break;
-				TotalWidthForMusic += (size_t)(dd.full.right - dd.full.left);
+				if (LastMeasureWithNote >= m)
+					TotalWidthForMusic += (size_t)(dd.full.right - dd.full.left);
 				if (EndVisible == 0)
 					DrawnMeasures.push_back(dd);
 			}
 
-
+/*			wchar_t t[100];
+			swprintf_s(t, 100, L"TWF %u\r\n", TotalWidthForMusic);
+			OutputDebugString(t);
+*/
 			// Notes
 			for (auto& n : notes)
 			{
@@ -2451,9 +2562,15 @@ namespace PR
 				f4.right -= 2;
 				f4.top += 10;
 				f4.bottom = f.bottom - 10;
-				wchar_t ly[10];
-				swprintf_s(ly, 10, L"%u", n.layer + 1);
-				Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+
+				wchar_t ly[100] = { 0 };
+				MidiNoteName(ly, n.midi, Key, Mode);
+				Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING );
+				Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+				p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+
+				swprintf_s(ly, 100, L"%u", n.layer + 1);
+				Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
 				Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 				p->DrawTextW(ly,(UINT32) wcslen(ly), Text, f4, BlackBrush);
 			}
@@ -2466,7 +2583,7 @@ namespace PR
 
 			// Info bar
 			auto rc2 = rc;
-			rc2.top += top.full.bottom - top.full.top;
+			rc2.top += (LONG)(top.full.bottom - top.full.top);
 			PaintInfo(p, rc2);
 
 			if (Selecting)
