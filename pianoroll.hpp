@@ -4,6 +4,8 @@
 #pragma comment(lib,"Dwrite.lib")
 #pragma comment(lib,"winmm.lib")
 #include <atlbase.h>
+
+
 // Todo
 /*
 
@@ -2120,56 +2122,6 @@ namespace PR
 					d2.top += 1;
 					d2.bottom -= 1;
 
-					/*				//if (m > 6)
-										//continue;
-									if (m == 0) // C
-									{
-										d2.top -= 2*height / 3;
-										d2.top += 1;
-									}
-
-									if (m == 2) // D
-									{
-										d2.top -= height / 3;
-										d2.top += 1;
-										d2.bottom += height/3;
-										d2.bottom -= 1;
-									}
-									if (m == 4) // E
-									{
-										d2.top += 1;
-										d2.bottom += 2*height / 3;
-										d2.bottom -= 1;
-									}
-
-									if (m == 5) // F
-									{
-										d2.top -= 2 * height / 3;
-										d2.top += 1;
-										d2.bottom -= 1;
-									}
-									if (m == 7) // G
-									{
-										d2.top -= height / 3;
-										d2.top += 1;
-										d2.bottom += height / 3;
-										d2.bottom -= 1;
-									}
-									if (m == 9) // D
-									{
-										d2.top -= height / 3;
-										d2.top += 1;
-										d2.bottom += height / 3;
-										d2.bottom -= 1;
-									}
-									if (m == 11) // E
-									{
-										d2.top += 2;
-										d2.bottom += 2 * height / 3;
-										d2.bottom -= 1;
-									}
-					*/
-
 					DRAWPIANO dp;
 					dp.full = d2;
 					dp.m = a.n;
@@ -2466,10 +2418,6 @@ namespace PR
 					DrawnMeasures.push_back(dd);
 			}
 
-/*			wchar_t t[100];
-			swprintf_s(t, 100, L"TWF %u\r\n", TotalWidthForMusic);
-			OutputDebugString(t);
-*/
 			// Notes
 			for (auto& n : notes)
 			{
