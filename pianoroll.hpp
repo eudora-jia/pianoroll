@@ -321,7 +321,7 @@ namespace PR
 		}
 		void Unser(XML3::XMLElement& e)
 		{
-			m = e.vv("m").GetValueULongLong();
+			m = (size_t)e.vv("m").GetValueULongLong();
 			f.Unser(e);
 		}
 
@@ -698,6 +698,10 @@ namespace PR
 		}
 
 
+		int ViewLayers = 1;
+		int ViewChannels = 1;
+		int ViewVelocity = 1;
+
 		vector<NOTE> notes;
 		vector<NOTE> clip;
 		stack<vector<NOTE>> undo;
@@ -780,6 +784,11 @@ namespace PR
 			// Side Perc
 			e.vv("SidePerc").SetValueInt(side.PercPos);
 
+			// View Stuff
+			e.vv("ViewLayers").SetValueInt(ViewLayers);
+			e.vv("ViewVelocity").SetValueInt(ViewVelocity);
+			e.vv("ViewChannels").SetValueInt(ViewChannels);
+
 			// Notes
 			auto& ee = e["notes"];
 			for (auto& n : notes)
@@ -793,6 +802,10 @@ namespace PR
 		{
 			// Side Perc
 			side.PercPos = e.vv("SidePerc").GetValueInt(10);
+
+			ViewLayers = e.vv("ViewLayers").GetValueInt(1);
+			ViewVelocity = e.vv("ViewVelocity").GetValueInt(1);
+			ViewChannels = e.vv("ViewChannels").GetValueInt(1);
 
 			// Notes
 			auto& ee = e["notes"];
@@ -898,7 +911,7 @@ namespace PR
 						size_t TotBeats = dd.Beats.size() * snapres;
 						np.f.d = DENOM * snapres;
 						float widthpersnap = (dd.full.right - dd.full.left) / TotBeats;
-						for (auto nn = 0; nn < TotBeats ; nn++)
+						for (size_t nn = 0; nn < TotBeats ; nn++)
 						{
 							if (width >= ((nn * widthpersnap) + dd.full.left))
 								np.f.n = nn;
@@ -1248,7 +1261,7 @@ namespace PR
 				if (!Control && !Shift && Alt)
 				{
 					// Show/Hide layers
-					auto li = ww - VK_NUMPAD1;
+					int li = (int)(ww - VK_NUMPAD1);
 					auto it = std::lower_bound(HiddenLayers.begin(), HiddenLayers.end(), li);
 					if (it != HiddenLayers.end() && *it == li)
 					{
@@ -1917,6 +1930,15 @@ namespace PR
 					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)mx, L"Piano");
 					AppendMenu(m, MF_SEPARATOR, 0, L"");
 				}
+				if (true)
+				{
+					auto mx = CreatePopupMenu();
+					AppendMenu(mx, MF_STRING, 121, L"Velocities");
+					AppendMenu(mx, MF_STRING, 122, L"Channels");
+					AppendMenu(mx, MF_STRING, 123, L"Layers");
+					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)mx, L"View");
+					AppendMenu(m, MF_SEPARATOR, 0, L"");
+				}
 
 				auto m2 = CreatePopupMenu();
 				swprintf_s(re, L"Set next (Current: %i)\t", NextLayer + 1);
@@ -2045,6 +2067,21 @@ namespace PR
 					Redraw();
 				}
 
+				if (tcmd == 121)
+				{
+					ViewVelocity = !ViewVelocity;
+					Redraw();
+				}
+				if (tcmd == 122)
+				{
+					ViewChannels = !ViewChannels;
+					Redraw();
+				}
+				if (tcmd == 123)
+				{
+					ViewLayers = !ViewLayers;
+					Redraw();
+				}
 			}
 
 
@@ -2524,7 +2561,7 @@ namespace PR
 				LastMeasureWithNote = notes[notes.size() - 1].p.m;
 			}
 
-			for (auto m = 0; ; m++)
+			for (size_t m = 0; ; m++)
 			{
 				auto time = TimeAtMeasure(m);
 				DRAWNMEASURESANDBEATS dd;
@@ -2620,7 +2657,7 @@ namespace PR
 				f.right = f.left + (bw * DENOM * n.d.r());
 
 				// Find the note
-				if ((n.midi - FirstNote) >= DrawedNotes.size())
+				if ((n.midi - FirstNote) >= (int)DrawedNotes.size())
 					continue;
 				auto & dn = DrawedNotes[n.midi - FirstNote];
 
@@ -2640,54 +2677,63 @@ namespace PR
 				n.dr = f;
 
 				// Velocity
-				auto f2 = f;
-				f2.left += 10;
-				f2.right -= 10;
-				f2.top += (f2.bottom - f2.top) / 2 + 5;
-				f2.bottom = f2.top + 3;
-				// in 127, width full
-				// in V, ? 
-				float wf = (f2.right - f2.left) * n.vel / 127;
-				p->FillRectangle(f2, NoteBrush3);
+				if (ViewVelocity)
+				{
+					auto f2 = f;
+					f2.left += 10;
+					f2.right -= 10;
+					f2.top += (f2.bottom - f2.top) / 2 + 5;
+					f2.bottom = f2.top + 3;
+					// in 127, width full
+					// in V, ? 
+					float wf = (f2.right - f2.left) * n.vel / 127;
+					p->FillRectangle(f2, NoteBrush3);
 
-				f2.right = f2.left + wf;
-				p->FillRectangle(f2, NoteBrush4);
+					f2.right = f2.left + wf;
+					p->FillRectangle(f2, NoteBrush4);
+				}
 
 				// Channel
-				auto f3 = f;
-				f3.left += 10;
-				f3.right -= 10;
-				f3.top += 5;
-				f3.bottom = f3.top + 3;
-				float ChX = (f3.right - f3.left) / 16.0f;
-				for (int ch = 0; ch <= 15; ch++)
+				if (ViewChannels)
 				{
-					f3.right = f3.left + ChX - 2;
-					if (n.ch == ch)
-						p->FillRectangle(f3, NoteBrush4);
-					else
-						p->FillRectangle(f3, NoteBrush3);
-					f3.left += ChX;
+					auto f3 = f;
+					f3.left += 10;
+					f3.right -= 10;
+					f3.top += 5;
+					f3.bottom = f3.top + 3;
+					float ChX = (f3.right - f3.left) / 16.0f;
+					for (int ch = 0; ch <= 15; ch++)
+					{
+						f3.right = f3.left + ChX - 2;
+						if (n.ch == ch)
+							p->FillRectangle(f3, NoteBrush4);
+						else
+							p->FillRectangle(f3, NoteBrush3);
+						f3.left += ChX;
 
+					}
 				}
 
 				// Layer
-				auto f4 = f;
-				f4.left += 2;
-				f4.right -= 2;
-				f4.top += 10;
-				f4.bottom = f.bottom - 10;
+				if (ViewLayers)
+				{
+					auto f4 = f;
+					f4.left += 2;
+					f4.right -= 2;
+					f4.top += 10;
+					f4.bottom = f.bottom - 10;
 
-				wchar_t ly[100] = { 0 };
-				MidiNoteName(ly, n.midi, Key, Mode);
-				Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING );
-				Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-				p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+					wchar_t ly[100] = { 0 };
+					MidiNoteName(ly, n.midi, Key, Mode);
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
 
-				swprintf_s(ly, 100, L"%u", n.layer + 1);
-				Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
-				Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-				p->DrawTextW(ly,(UINT32) wcslen(ly), Text, f4, BlackBrush);
+					swprintf_s(ly, 100, L"%u", n.layer + 1);
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+				}
 			}
 
 			// Side bar
