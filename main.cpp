@@ -101,6 +101,11 @@ public:
 
 	const FRACTION& simplify() const
 	{
+		if (n == 0)
+		{
+			d = 1;
+			return *this;
+		}
 		ssize_t g = gcd(n, d);
 		if (g == 0)
 			return *this;
@@ -143,12 +148,16 @@ public:
 		return *this;
 	}
 
-	bool operator ==(FRACTION& f)
+	bool operator ==(const FRACTION& f)
 	{
 		Om(*this, f);
 		if (n == f.n)
 			return true;
 		return false;
+	}
+	bool operator !=(const FRACTION& f)
+	{
+		return !operator==(f);
 	}
 
 	bool operator <(FRACTION& f)
@@ -187,6 +196,22 @@ FRACTION operator -(const FRACTION& a, const FRACTION& b)
 	FRACTION f(a.n - b.n, a.d);
 	return f;
 }
+FRACTION operator /(const FRACTION& a, const FRACTION& b)
+{
+	FRACTION f(a.n * b.d, a.d * b.n);
+	return f.simplify();
+}
+bool operator <(const FRACTION& a, const FRACTION& b)
+{
+	FRACTION::Om(a, b);
+	if (a.n < b.n)
+		return true;
+	return false;
+}
+bool operator >(const FRACTION& a, const FRACTION& b)
+{
+	return !operator <(a, b);
+}
 
 
 
@@ -197,25 +222,34 @@ class POSITION
 		FRACTION f;
 		int noteht = 0;
 
-		FRACTION ToFraction() const
-		{
-			return FRACTION(m) + f;
-		}
-
 		bool operator <(const POSITION& p)
 		{
-			FRACTION f1 = ToFraction();
-			FRACTION f2 = p.ToFraction();
-			if (f1 < f2)
+			if (m < p.m)
+				return true;
+			if (m > p.m)
+				return false;
+			if (f < p.f)
 				return true;
 			return false;
 		}
 
+		bool operator ==(const POSITION& p)
+		{
+			if (m != p.m)
+				return false;
+			if (f != p.f)
+				return false;
+			return true;
+		}
+
+		bool operator !=(const POSITION& p)
+		{
+			return !operator ==(p);
+		}
 		bool operator >(const POSITION& p)
 		{
 			return !operator <(p);
 		}
-
 };
 
 
@@ -231,7 +265,7 @@ public:
 
 	D2D1_RECT_F dr;
 	
-	POSITION End() const
+	POSITION EndX() const
 	{
 		POSITION pp = p;
 		pp.f += d;
@@ -422,6 +456,7 @@ private:
 	};
 	vector<DRAWNNOTES> DrawedNotes;
 
+	int DENOM = 4;
 	float HeightScale = 1.0;
 	float bw = 60.0f;
 	float BarStroke = 1.0;
@@ -640,6 +675,25 @@ public:
 	}
 
 
+	size_t AbsMeasure(size_t im)
+	{
+		size_t nb = 0;
+		for (size_t i = 0; i < im; i++)
+		{
+			auto t = TimeAtMeasure(i);
+			nb += t.nb;
+		}
+		return nb;
+	}
+
+	FRACTION AbsF(POSITION& p)
+	{
+		auto nb = AbsMeasure(p.m);
+		FRACTION f(nb, DENOM);
+		f += p.f;
+		return f;
+	}
+
 	POSITION MeasureAndBarHitTest(float width,bool Precise = false)
 	{
 		POSITION np;
@@ -672,7 +726,7 @@ public:
 				}
 				else
 				{
-					np.f.d = snapres * dd.Beats.size();
+					np.f.d = DENOM*snapres;
 					float widthpersnap = (dd.full.right - dd.full.left) / np.f.d;
 					for (auto nn = 0; nn < np.f.d; nn++)
 					{
@@ -683,11 +737,6 @@ public:
 					}
 				}
 
-#ifdef _DEBUG
-				wchar_t t[1000];
-				swprintf_s(t, L"HitTest M %u F %u/%u\r\n", np.m, np.f.n, np.f.d);
-				OutputDebugString(t);
-#endif
 				return np;
 			}
 		}
@@ -720,12 +769,12 @@ public:
 
 	void ConvertPositionToNewMeasure(POSITION& p)
 	{
-		auto f1 = p.ToFraction();
+		auto f1 = AbsF(p);
 		size_t im = 0;
 		for (; ; im++)
 		{
 			auto ti = TimeAtMeasure(im);
-			FRACTION bt(ti.nb,ti.nb);
+			FRACTION bt(ti.nb,DENOM);
 			if (f1 < bt)
 				break;
 			f1 -= bt;
@@ -733,6 +782,7 @@ public:
 		p.m = im;
 		p.f = f1;
 	}
+
 
 	TIME TimeAtMeasure(size_t im)
 	{
@@ -825,18 +875,18 @@ public:
 				if (!notes[i].Selected)
 					continue;
 
-				auto e = notes[i].End();
+				auto e = notes[i].EndX();
 				ConvertPositionToNewMeasure(e);
-				e.f.simplify();
-
-
+				//auto e2 = AbsF(e);
 				if (!R)
 					PushUndo();
 				R = true;
+				notes[i].d.n++;
+
 			}
 			if (R)
 				Redraw();
-			return ;
+			return;
 		}
 
 		if (ww == 'S')
@@ -885,9 +935,7 @@ public:
 						continue;
 
 					// Check gap
-
-					auto dur = notes[y].p.ToFraction() - (notes[i].p.ToFraction() + notes[i].d);
-					if (dur.n != 0)
+					if (notes[i].EndX() != notes[y].p)
 						continue;
 
 					if (!R)
@@ -1181,6 +1229,7 @@ public:
 	void MouseMove(WPARAM, LPARAM ll)
 	{
 		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+		bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
 		int xx = LOWORD(ll);
 		int yy = HIWORD(ll);
 		if (Selecting)
@@ -1280,36 +1329,53 @@ public:
 		if (NoteResizing)
 		{
 			SetCursor(CursorResize);
+#ifdef _DEBUG
+		///	if (Shift) DebugBreak();
+#endif
 
 			auto hp = MeasureAndBarHitTest((float)xx,Shift);
 			if (ResizingRight)
 			{
+#ifdef _DEBUG
+				if (Control) DebugBreak();
+#endif
 				// Enlarge note
-				auto d= hp.ToFraction() - NoteResizing->p.ToFraction();
-				FRACTION f0(0);
-				if (d <= f0)
-					return;
+				if (!Shift)
+					hp.f.n++; // Add a beat
+				if (hp.m < NoteResizing->p.m)
+					return; // Back Measure
+				if (hp.m == NoteResizing->p.m && hp.f < NoteResizing->p.f)
+					return; // Back Inside
 				NOTE nn = *NoteResizing;
-				nn.d = d;
+				auto a1 = AbsF(hp);
+				auto a2 = AbsF(NoteResizing->p);
+				
+#ifdef _DEBUG
+//				wchar_t a[100];	a1.simplify();	a2.simplify();	swprintf_s(a, 100, L"%u/%u %u/%u \r\n", a1.n, a1.d, a2.n, a2.d);	OutputDebugString(a);
+#endif
+				nn.d = a1 - a2;
+				if (nn.d.n <= 0)
+					return;
 				for (auto c : cb)
 				{
 					if (FAILED(c->OnNoteChange(this, NoteResizing, &nn)))
 						return;
 				}
-				NoteResizing->d = d.simplify();
+				nn.d.simplify();
+				*NoteResizing = nn;
 				Redraw();
 			}
 			else
 			{
 				// Change Position
 				auto oldp = NoteResizing->p;
-				auto endp = oldp.ToFraction() + NoteResizing->d;
-				auto newd = endp - hp.ToFraction();
+				auto endp = AbsF(oldp) + NoteResizing->d;
+				auto newd = endp - AbsF(hp);
 				if (newd.n == 0)
 					return;
 				FRACTION mx;
-				mx = (NoteResizingSt.p.ToFraction() + NoteResizingSt.d);
-				if (hp.ToFraction() > mx)
+				mx = (AbsF(NoteResizingSt.p) + NoteResizingSt.d);
+				if (AbsF(hp) > mx)
 					return;
 				//DebugBreak();
 				NOTE nn = *NoteResizing;
@@ -1652,12 +1718,19 @@ public:
 			if (noteres < 0)
 			{
 				nx.d.n = abs(noteres);
-				nx.d.d = msr->Beats.size();
+				nx.d.d = DENOM;
 			}
 			else
 			{
 				nx.d.n = 1;
-				nx.d.d = msr->Beats.size()*noteres;
+				if (noteres == 1)
+					nx.d.d = DENOM*1;
+				if (noteres == 2)
+					nx.d.d = DENOM*2;
+				if (noteres == 3)
+					nx.d.d = DENOM*3;
+				if (noteres == 4)
+					nx.d.d = DENOM*4;
 			}
 
 			for (auto c : cb)
@@ -2055,10 +2128,11 @@ public:
 			D2D1_RECT_F f = msr.full;
 
 			float fwi = (f.right - f.left);
-			fwi = fwi * n.p.f.r();
-
-			f.left += fwi;
-			f.right = f.left + bw * msrbegin->Beats.size() * n.d.r();
+			FRACTION fbr(msr.Beats.size(), 4);
+			// in fbr, full len
+			// in n.p ?
+			f.left += fwi * (n.p.f / fbr).r();
+			f.right = f.left + (bw * DENOM * n.d.r());
 
 			// Find the note
 			if ((n.midi - FirstNote) >= DrawedNotes.size())
