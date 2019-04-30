@@ -16,8 +16,16 @@ const TCHAR* ttitle = _T("App");
 
 HMIDIOUT mIN = 0;
 
+
+namespace PR
+{ 
 class PIANOROLL;
 class NOTE;
+#ifdef _WIN64
+typedef long long ssize_t;
+#else
+typedef long ssize_t;
+#endif
 
 // Todo
 /*
@@ -63,17 +71,44 @@ public:
 class FRACTION
 {
 public:
-	mutable int n = 0;
-	mutable int d = 1;
+	mutable ssize_t n = 0;
+	mutable ssize_t d = 1;
 
 	static void Om(const FRACTION& f1, const FRACTION& f2)
 	{
 		if (f1.d == f2.d)
 			return;
+		f1.simplify();
+		f2.simplify();
+		auto f1d = f1.d;
 		f1.bmul(f2.d);
-		f2.bmul(f1.d);
+		f2.bmul(f1d);
 		return;
 	}
+
+
+	static ssize_t gcd(ssize_t num1, ssize_t num2)
+	{
+		if (num1 == 0 || num2 == 0)
+			return 0;
+		ssize_t remainder = num2 % num1;
+		if (remainder != 0)
+			return gcd(remainder, num1);
+		return num1;
+	}
+
+
+
+	const FRACTION& simplify() const
+	{
+		ssize_t g = gcd(n, d);
+		if (g == 0)
+			return *this;
+		n /= g;
+		d /= g;
+		return *this;
+	}
+
 
 	float r()
 	{
@@ -82,17 +117,38 @@ public:
 		return (float)n / (float)d;
 	}
 
-	FRACTION(int nu = 0, int de = 1)
+	FRACTION(ssize_t nu = 0, ssize_t de = 1)
 	{
 		n = nu;
 		d = de;
 	}
 
-	const FRACTION& bmul(int de) const
+	const FRACTION& bmul(ssize_t de) const
 	{
 		n *= de;
-		n *= de;
+		d *= de;
 		return *this;
+	}
+
+	FRACTION& operator +=(const FRACTION& a)
+	{
+		FRACTION::Om(*this, a);
+		n += a.n;
+		return *this;
+	}
+	FRACTION& operator -=(const FRACTION& a)
+	{
+		FRACTION::Om(*this, a);
+		n -= a.n;
+		return *this;
+	}
+
+	bool operator ==(FRACTION& f)
+	{
+		Om(*this, f);
+		if (n == f.n)
+			return true;
+		return false;
 	}
 
 	bool operator <(FRACTION& f)
@@ -102,6 +158,21 @@ public:
 			return true;
 		return false;
 	}
+	bool operator <=(FRACTION& f)
+	{
+		Om(*this, f);
+		if (n <= f.n)
+			return true;
+		return false;
+	}
+	bool operator >(FRACTION& f)
+	{
+		return !operator<(f);
+	}
+	bool operator >=(FRACTION& f)
+	{
+		return !operator<=(f);
+	}
 };
 
 FRACTION operator +(const FRACTION& a, const FRACTION& b)
@@ -110,6 +181,14 @@ FRACTION operator +(const FRACTION& a, const FRACTION& b)
 	FRACTION f(a.n + b.n, a.d);
 	return f;
 }
+FRACTION operator -(const FRACTION& a, const FRACTION& b)
+{
+	FRACTION::Om(a, b);
+	FRACTION f(a.n - b.n, a.d);
+	return f;
+}
+
+
 
 class POSITION
 {
@@ -118,10 +197,15 @@ class POSITION
 		FRACTION f;
 		int noteht = 0;
 
+		FRACTION ToFraction() const
+		{
+			return FRACTION(m) + f;
+		}
+
 		bool operator <(const POSITION& p)
 		{
-			FRACTION f1 = FRACTION(m) + f;
-			FRACTION f2 = FRACTION(p.m) + p.f;
+			FRACTION f1 = ToFraction();
+			FRACTION f2 = p.ToFraction();
 			if (f1 < f2)
 				return true;
 			return false;
@@ -131,13 +215,9 @@ class POSITION
 		{
 			return !operator <(p);
 		}
+
 };
 
-class DURATION
-{
-	public:
-		FRACTION f;
-};
 
 class NOTE
 {
@@ -146,10 +226,18 @@ public:
 	int midi = 0;
 	int Selected = 0;
 	POSITION p;
-	DURATION d;
+	FRACTION d;
 	int vel = 127;
 
 	D2D1_RECT_F dr;
+	
+	POSITION End() const
+	{
+		POSITION pp = p;
+		pp.f += d;
+		return pp;
+	}
+
 
 	bool operator <(const NOTE& n2)
 	{
@@ -451,6 +539,7 @@ private:
 	CComPtr<ID2D1SolidColorBrush> NoteBrush2;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush3;
 	CComPtr<ID2D1SolidColorBrush> NoteBrush4;
+	HCURSOR CursorArrow = 0, CursorResize = 0;
 	unsigned int snapres = 1;
 	signed int noteres = 1; // bars 
 	SIDEDRAW side;
@@ -459,6 +548,9 @@ private:
 	int BarMoving = false;
 	int Selecting = false;
 	NOTE* NoteDragging = 0;
+	NOTE* NoteResizing = 0;
+	NOTE NoteResizingSt;
+	bool ResizingRight = 0; // 1 right, 0 left
 	int PianoClicking = false;
 	POINT LastClick;
 	int PianoNoteClicked = -1;
@@ -478,7 +570,7 @@ private:
 		redo = stack<vector<NOTE>>();
 	}
 
-	bool InRect(D2D1_RECT_F& r, int x, int y)
+	template <typename T = float> bool InRect(D2D1_RECT_F& r, T x, T y)
 	{
 		if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom)
 			return true;
@@ -506,6 +598,8 @@ public:
 	{
 		hParent = hp;
 		CreateScale(Key, Mode, Scale);
+		CursorResize = LoadCursor(0, IDC_SIZEWE);
+		CursorArrow = LoadCursor(0, IDC_HAND);
 	}
 
 	void SetWindow(HWND hp)
@@ -546,7 +640,7 @@ public:
 	}
 
 
-	POSITION MeasureAndBarHitTest(float width)
+	POSITION MeasureAndBarHitTest(float width,bool Precise = false)
 	{
 		POSITION np;
 		np.m = (size_t)-1;
@@ -570,16 +664,30 @@ public:
 //				np.beatht = y;
 
 				// Calculate Also the fraction
-				np.f.d = snapres*dd.Beats.size();
-				float widthpersnap = (dd.full.right - dd.full.left) / np.f.d;
-				for (auto nn = 0; nn < np.f.d; nn++)
+				if (Precise)
 				{
-					if (width >= ((nn * widthpersnap) + dd.full.left))
-						np.f.n = nn;
-					else
-						break;
+					np.f.d = (int)(dd.full.right - dd.full.left);
+					np.f.n = (int)(width - dd.full.left);
+					break;
+				}
+				else
+				{
+					np.f.d = snapres * dd.Beats.size();
+					float widthpersnap = (dd.full.right - dd.full.left) / np.f.d;
+					for (auto nn = 0; nn < np.f.d; nn++)
+					{
+						if (width >= ((nn * widthpersnap) + dd.full.left))
+							np.f.n = nn;
+						else
+							break;
+					}
 				}
 
+#ifdef _DEBUG
+				wchar_t t[1000];
+				swprintf_s(t, L"HitTest M %u F %u/%u\r\n", np.m, np.f.n, np.f.d);
+				OutputDebugString(t);
+#endif
 				return np;
 			}
 		}
@@ -608,6 +716,22 @@ public:
 			return Heights[0].nh*HeightScale;
 
 		return 0.0f; //*
+	}
+
+	void ConvertPositionToNewMeasure(POSITION& p)
+	{
+		auto f1 = p.ToFraction();
+		size_t im = 0;
+		for (; ; im++)
+		{
+			auto ti = TimeAtMeasure(im);
+			FRACTION bt(ti.nb,ti.nb);
+			if (f1 < bt)
+				break;
+			f1 -= bt;
+		}
+		p.m = im;
+		p.f = f1;
 	}
 
 	TIME TimeAtMeasure(size_t im)
@@ -643,15 +767,34 @@ public:
 		return d;
 	}
 
-	size_t NoteAtPos(int x, int y)
+	size_t NoteAtPos(int x, int y,bool ResizeEdge = false,bool* Right = 0)
 	{
+/*		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+		if (Shift)
+			DebugBreak();
+*/
 		for (size_t i = 0 ; i < notes.size() ; i++)
 		{
 			auto& n = notes[i];
-			if (n.dr.left > x)
-				continue;
-			if (n.dr.right < x)
-				continue;
+			if (ResizeEdge)
+			{
+				if (abs(n.dr.left - x) > 5 && abs(n.dr.right - x) > 5)
+					continue;
+				if (Right)
+				{
+					*Right = false;
+					if (abs(n.dr.right - x) < 5)
+						*Right = true;
+				}
+
+			}
+			else
+			{
+				if (n.dr.left > x)
+					continue;
+				if (n.dr.right < x)
+					continue;
+			}
 			if (n.dr.top > y)
 				continue;
 			if (n.dr.bottom < y)
@@ -661,16 +804,111 @@ public:
 		return (size_t)-1;
 	}
 
-	void KeyDown(WPARAM ww, LPARAM )
+	void KeyDown(WPARAM ww, LPARAM,bool S = false,bool C = false,bool A = false)
 	{
 		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
 		bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
+		bool Alt = ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+		if (S)
+			Shift = true;
+		if (C)
+			Control = true;
+		if (A)
+			Alt = true;
+
+		if (ww == 191) // /
+		{
+			bool R = false;
+			// Split notes
+			for (size_t i = 0; i < notes.size(); i++)
+			{
+				if (!notes[i].Selected)
+					continue;
+
+				auto e = notes[i].End();
+				ConvertPositionToNewMeasure(e);
+				e.f.simplify();
+
+
+				if (!R)
+					PushUndo();
+				R = true;
+			}
+			if (R)
+				Redraw();
+			return ;
+		}
+
+		if (ww == 'S')
+		{
+			vector<NOTE> add;
+			bool R = false;
+			// Split notes
+			for (size_t i = 0; i < notes.size(); i++)
+			{
+				if (!notes[i].Selected)
+					continue;
+
+				// Change duration
+				// If there is a beat, cut it there
+				// Else half
+				if (!R)
+					PushUndo();
+				R = true;
+				auto n2 = notes[i];
+
+
+			}
+
+			if (add.empty())
+				return;
+			notes.insert(notes.end(), add.begin(), add.end());
+			std::sort(notes.begin(), notes.end());
+			Redraw();
+			return;
+		}
+
+		if (ww == 'J')
+		{
+			bool R = false;
+			// Join notes
+			for (size_t i = 0; i < notes.size(); i++)
+			{
+				if (!notes[i].Selected)
+					continue;
+				for (size_t y = (i + 1); y < notes.size(); y++)
+				{
+					if (!notes[y].Selected)
+						continue;
+
+					if (notes[i].midi != notes[y].midi)
+						continue;
+
+					// Check gap
+
+					auto dur = notes[y].p.ToFraction() - (notes[i].p.ToFraction() + notes[i].d);
+					if (dur.n != 0)
+						continue;
+
+					if (!R)
+						PushUndo();
+					notes[i].d += notes[y].d;
+					notes.erase(notes.begin() + y);
+					R = true;
+					break;
+				}
+			}
+			if (R)
+				Redraw();
+			return;
+		}
+
 
 		if (ww >= '1' && ww <= '6' )
 		{
 			if (Control)
 			{
-				snapres = ww - '1' + 1;
+				snapres = (unsigned int)ww - '1' + 1;
 				Redraw();
 				return;
 			}
@@ -712,7 +950,7 @@ public:
 
 			NOTE first = clip[0];
 			int di = first.midi - LastClickN.noteht;
-			int im = first.p.m - LastClickN.m;
+			size_t im = first.p.m - LastClickN.m;
 			PushUndo();
 			for (auto& n : clip)
 			{
@@ -948,19 +1186,19 @@ public:
 		if (Selecting)
 		{
 			D2D1_RECT_F& d3 = SelectRect;
-			d3.left = LastClick.x;
-			d3.right = xx;
+			d3.left = (FLOAT)LastClick.x;
+			d3.right = (FLOAT)xx;
 			if (xx < LastClick.x)
 			{
-				d3.right = LastClick.x;
-				d3.left = xx;
+				d3.right = (FLOAT)LastClick.x;
+				d3.left = (FLOAT)xx;
 			}
-			d3.top = LastClick.y;
-			d3.bottom = yy;
+			d3.top = (FLOAT)LastClick.y;
+			d3.bottom = (FLOAT)yy;
 			if (yy < LastClick.y)
 			{
-				d3.bottom = LastClick.y;
-				d3.top = yy;
+				d3.bottom = (FLOAT)LastClick.y;
+				d3.top = (FLOAT)yy;
 			}
 
 			for (auto& n : notes)
@@ -1023,12 +1261,12 @@ public:
 
 		if (NoteDragging)
 		{
-			auto hp = MeasureAndBarHitTest(xx);
+			auto hp = MeasureAndBarHitTest((float)xx);
 			NOTE nx = *NoteDragging;
 			nx.p.m = hp.m;
 			nx.p.f = hp.f;
 
-			int np = MidiHitTest(yy);
+			int np = MidiHitTest((float)yy);
 			nx.midi = np;
 			for (auto c : cb)
 			{
@@ -1038,6 +1276,69 @@ public:
 			*NoteDragging = nx;
 			Redraw();
 		}
+
+		if (NoteResizing)
+		{
+			SetCursor(CursorResize);
+
+			auto hp = MeasureAndBarHitTest((float)xx,Shift);
+			if (ResizingRight)
+			{
+				// Enlarge note
+				auto d= hp.ToFraction() - NoteResizing->p.ToFraction();
+				FRACTION f0(0);
+				if (d <= f0)
+					return;
+				NOTE nn = *NoteResizing;
+				nn.d = d;
+				for (auto c : cb)
+				{
+					if (FAILED(c->OnNoteChange(this, NoteResizing, &nn)))
+						return;
+				}
+				NoteResizing->d = d.simplify();
+				Redraw();
+			}
+			else
+			{
+				// Change Position
+				auto oldp = NoteResizing->p;
+				auto endp = oldp.ToFraction() + NoteResizing->d;
+				auto newd = endp - hp.ToFraction();
+				if (newd.n == 0)
+					return;
+				FRACTION mx;
+				mx = (NoteResizingSt.p.ToFraction() + NoteResizingSt.d);
+				if (hp.ToFraction() > mx)
+					return;
+				//DebugBreak();
+				NOTE nn = *NoteResizing;
+				nn.d  = newd.simplify();
+				nn.p = hp;
+				for (auto c : cb)
+				{
+					if (FAILED(c->OnNoteChange(this, NoteResizing, &nn)))
+						return;
+				}
+				NoteResizing->p = hp;
+				NoteResizing->d = newd.simplify();
+				Redraw();
+			}
+
+
+			return;
+		}
+
+		// Cursor pos for resizing
+		auto ni = NoteAtPos(xx,yy,true);
+		if (ni != -1)
+		{
+			SetCursor(CursorResize);
+		}
+		else
+			SetCursor(CursorArrow);
+
+
 	}
 
 	void LeftUp(WPARAM, LPARAM)
@@ -1047,6 +1348,9 @@ public:
 			for (auto c : cb)
 				c->OnPianoOff(this, PianoNoteClicked);
 		}
+		if (NoteResizing || NoteDragging)
+			std::sort(notes.begin(), notes.end());
+		NoteResizing = 0;
 		NoteDragging = 0;
 		Selecting = false;
 		SelectRect.left = SelectRect.top = SelectRect.right = SelectRect.bottom = 0;
@@ -1223,12 +1527,14 @@ public:
 	void LeftDown(WPARAM , LPARAM ll)
 	{
 		Selecting = false;
-		LastClickN = MeasureAndBarHitTest(LOWORD(ll));
-		LastClickN.noteht = MidiHitTest(HIWORD(ll));
-		LastClick.x = LOWORD(ll);
-		LastClick.y = HIWORD(ll);
+		int xx = LOWORD(ll);
+		int yy = HIWORD(ll);
+		LastClickN = MeasureAndBarHitTest((FLOAT)xx);
+		LastClickN.noteht = MidiHitTest((FLOAT)yy);
+		LastClick.x = xx;
+		LastClick.y = yy;
 		// Bar
-		if (InRect(top.full, LOWORD(ll), HIWORD(ll)))
+		if (InRect(top.full, xx,yy))
 		{
 			BarMoving = true;
 			return;
@@ -1266,7 +1572,16 @@ public:
 
 		// Find note there
 		bool Need = false;
-		auto ni = NoteAtPos(LOWORD(ll), HIWORD(ll));
+		auto ni = NoteAtPos(xx, yy);
+		auto ni2 = NoteAtPos(xx, yy,true,&ResizingRight);
+
+		if (ni2 != -1)
+		{
+			NoteResizing = &notes[ni2];
+			NoteResizingSt = *NoteResizing;
+			SetCursor(CursorResize);
+			return;
+		}
 
 		// Deselect
 		if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
@@ -1336,13 +1651,13 @@ public:
 			nx.p.f = e1.f;
 			if (noteres < 0)
 			{
-				nx.d.f.n = abs(noteres);
-				nx.d.f.d = msr->Beats.size();
+				nx.d.n = abs(noteres);
+				nx.d.d = msr->Beats.size();
 			}
 			else
 			{
-				nx.d.f.n = 1;
-				nx.d.f.d = msr->Beats.size()*noteres;
+				nx.d.n = 1;
+				nx.d.d = msr->Beats.size()*noteres;
 			}
 
 			for (auto c : cb)
@@ -1743,7 +2058,7 @@ public:
 			fwi = fwi * n.p.f.r();
 
 			f.left += fwi;
-			f.right = f.left + bw * msrbegin->Beats.size() * n.d.f.r();
+			f.right = f.left + bw * msrbegin->Beats.size() * n.d.r();
 
 			// Find the note
 			if ((n.midi - FirstNote) >= DrawedNotes.size())
@@ -1791,10 +2106,11 @@ public:
 		p->EndDraw();
 	}
 };
-
+}
+using namespace PR;
 
 CComPtr<ID2D1HwndRenderTarget> d;
-CComPtr<ID2D1Factory> f;
+CComPtr<ID2D1Factory> fa;
 PIANOROLL prx;
 
 HANDLE hEv = CreateEvent(0, 0, 0, 0);
@@ -1954,8 +2270,8 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 
 			RECT rc;
 			GetClientRect(hh, &rc);
-			if (!f)
-				D2D1CreateFactory(D2D1_FACTORY_TYPE::D2D1_FACTORY_TYPE_MULTI_THREADED, &f);
+			if (!fa)
+				D2D1CreateFactory(D2D1_FACTORY_TYPE::D2D1_FACTORY_TYPE_MULTI_THREADED, &fa);
 			if (!d)
 			{
 //				D2D1_RENDER_TARGET_PROPERTIES p;
@@ -1965,7 +2281,7 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 				hp.pixelSize.height = rc.bottom;
 				d.Release();
 				
-				f->CreateHwndRenderTarget(D2D1::RenderTargetProperties(), D2D1::HwndRenderTargetProperties(hh, D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top)), &d);
+				fa->CreateHwndRenderTarget(D2D1::RenderTargetProperties(), D2D1::HwndRenderTargetProperties(hh, D2D1::SizeU(rc.right - rc.left, rc.bottom - rc.top)), &d);
 			}
 			prx.Paint(d, rc);
 			EndPaint(hh, &ps);
@@ -2020,7 +2336,7 @@ int __stdcall WinMain(HINSTANCE h, HINSTANCE, LPSTR, int)
 	wClass.lpfnWndProc = (WNDPROC)Main_DP;
 	wClass.hInstance = h;
 	wClass.hIcon = hIcon1;
-	wClass.hCursor = LoadCursor(0, IDC_ARROW);
+	wClass.hCursor = 0;// LoadCursor(0, IDC_ARROW);
 	wClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
 	wClass.lpszClassName = _T("CLASS");
 	wClass.hIconSm = hIcon1;
