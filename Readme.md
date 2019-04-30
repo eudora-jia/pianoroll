@@ -17,6 +17,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Unlimited layers
 * Piano side (Left/Right) 
 * Callbacks
+* Tools - Auto, Eraser, Single click entry
 
 ## Callbacks
 Your callbacks are notified when:
@@ -25,6 +26,9 @@ Your callbacks are notified when:
 * Redraw requested
 
 ## Keyboard shortcuts
+* A : auto tool
+* E : eraser tool
+* I : single entry tool
 * 1,2,3,4 (up row) : Select beat duration for next note
 * Shift+1,2,3,4 (up row) : Beat duration 1/8, 1/16, 1/32,  1/64
 * < and > : Change selected items velocity
@@ -47,8 +51,8 @@ Your callbacks are notified when:
 * Del : Delete selected notes
 
 ## Mouse
-* Dblclick : insert note 
+* Dblclick : insert note (auto tool) 
 * Dblclick on note : remove note
 * Click on note : select/unselect
-* Drag outside note: select
+* Drag outside note: select (insert in single entry tool, delete in eraser tool)
 * Drag/Resize note

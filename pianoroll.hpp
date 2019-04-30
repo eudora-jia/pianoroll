@@ -564,6 +564,7 @@ namespace PR
 		float ScrollX = 0;
 		int Key = 0;
 		int Mode = 0;
+		int Tool = 0; // 0 Auto, 1 Eraser, 2 Single entry
 
 		vector<int> Scale;
 		bool BelongsToScale(int m, vector<int> & s)
@@ -1353,6 +1354,21 @@ namespace PR
 				return;
 			}
 
+			if (ww == 'A' && !Shift && !Control && !Alt)
+			{
+				Tool = 0;
+				Redraw();
+			}
+			if (ww == 'E' && !Shift && !Control && !Alt)
+			{
+				Tool = 1;
+				Redraw();
+			}
+			if (ww == 'I' && !Shift && !Control && !Alt)
+			{
+				Tool = 2;
+				Redraw();
+			}
 
 			if (ww == VK_ADD || ww == VK_SUBTRACT || ww == VK_OEM_PLUS || ww == VK_OEM_MINUS)
 			{
@@ -1476,8 +1492,23 @@ namespace PR
 		{
 			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
 			bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
+			bool LeftClick = ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0);
 			int xx = LOWORD(ll);
 			int yy = HIWORD(ll);
+
+			if (Tool == 1 && LeftClick)
+			{
+				auto ni = NoteAtPos(xx, yy);
+				if (ni != -1)
+				{
+					if (!Selecting)
+						PushUndo();
+					Selecting = true;
+					notes.erase(notes.begin() + ni);
+					Redraw();
+				}
+				return;
+			}
 			if (Selecting)
 			{
 				D2D1_RECT_F& d3 = SelectRect;
@@ -1786,6 +1817,13 @@ namespace PR
 				auto m = CreatePopupMenu();
 				wchar_t re[1000] = { 0 };
 
+				auto m0 = CreatePopupMenu();
+				AppendMenu(m0, MF_STRING, 51, L"Auto\tA");
+				AppendMenu(m0, MF_STRING, 52, L"Eraser\tE");
+				AppendMenu(m0, MF_STRING, 53, L"Single Click Entry\tI");
+				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m0, L"Tool");
+				AppendMenu(m, MF_SEPARATOR, 0, L"");
+
 				auto m1 = CreatePopupMenu();
 				swprintf_s(re, L"Set current (Current: %i)\t", Key);
 				AppendMenu(m1, MF_STRING, 1, re);
@@ -1855,11 +1893,13 @@ namespace PR
 						return;
 					Key = _wtoi(re);
 					CreateScale(Key, Mode, Scale);
+					Redraw();
 				}
 				if (tcmd == 2 || tcmd == 3)
 				{
 					Mode = (tcmd == 2) ? 0 : 1;
 					CreateScale(Key, Mode, Scale);
+					Redraw();
 				}
 				if (tcmd == 4)
 				{
@@ -1902,6 +1942,12 @@ namespace PR
 				if (tcmd == 43) noteres = 3;
 				if (tcmd == 44) noteres = 4;
 
+				if (tcmd >= 51 && tcmd <= 53)
+				{
+					Tool = tcmd - 51;
+					Redraw();
+				}
+
 			}
 
 
@@ -1910,7 +1956,7 @@ namespace PR
 		}
 
 
-		void LeftDown(WPARAM, LPARAM ll)
+		void LeftDown(WPARAM ww, LPARAM ll)
 		{
 			Selecting = false;
 			int xx = LOWORD(ll);
@@ -1919,6 +1965,10 @@ namespace PR
 			LastClickN.noteht = MidiHitTest((FLOAT)yy);
 			LastClick.x = xx;
 			LastClick.y = yy;
+			
+			if (Tool == 1)
+				return;
+
 			// Bar
 			if (InRect(top.full, xx, yy))
 			{
@@ -1976,6 +2026,12 @@ namespace PR
 				return;
 			}
 
+			if (ni == -1 && Tool == 2)
+			{
+				LeftDoubleClick(ww, ll);
+				return;
+			}
+
 			// Deselect
 			if ((GetAsyncKeyState(VK_SHIFT) & 0x8000) == 0)
 			{
@@ -2014,6 +2070,9 @@ namespace PR
 
 		void LeftDoubleClick(WPARAM, LPARAM ll)
 		{
+			if (Tool == 1)
+				return;
+
 			bool U = false;
 			// Find note there
 			auto ni = NoteAtPos(LOWORD(ll), HIWORD(ll));
@@ -2259,7 +2318,8 @@ namespace PR
 			f4.right = info.full.right - 4;
 			f4.top = info.full.top + 2;
 			f4.bottom = info.full.bottom - 2;
-			swprintf_s(ly, 200, L"L%u R%s%i ", NextLayer + 1, noteres > 0 ? L"1/" : L" ", noteres > 0 ? noteres : -noteres);
+			wchar_t* tls[] = {L"Auto",L"Eraser",L"Single entry"};
+			swprintf_s(ly, 200, L"%s L %u R%s%i K %i ", tls[Tool],NextLayer + 1, noteres > 0 ? L" 1/" : L" ", noteres > 0 ? noteres : -noteres,Key);
 			Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 			Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 			p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
