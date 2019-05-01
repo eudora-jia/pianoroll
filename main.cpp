@@ -164,8 +164,8 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 			x.Save();
 
 		}
-/*
-		Not yet completed
+
+//		Not yet completed
 		if (ww == VK_F6)
 		{
 			// Save MIDI
@@ -194,7 +194,7 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 			}
 			return 0;
 		}
-*/
+
 		if (ww == VK_F7)
 		{
 			// Save

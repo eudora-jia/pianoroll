@@ -22,6 +22,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Serialization/Deserialization to XML
 * Key per measure
 * Time signature per measure
+* MIDI export (working, not 100% completed yet)
 
 ## Callbacks
 Your callbacks are notified when:

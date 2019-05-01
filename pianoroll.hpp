@@ -1062,12 +1062,13 @@ namespace PR
 		void ToMidi(vector<unsigned char>& v)
 		{
 			MIDI m;
-			vector<MIDI::MIDIITEM> s;
 			int TPB = 960;
-			MIDI::MIDIITEM Tempo;
-			Tempo.Tempo(120);
-			s.push_back(Tempo);
+//			MIDI::MIDIITEM Tempo;
+//			Tempo.Tempo(120);
+//			s.push_back(Tempo);
 
+			map<int, vector<MIDI::MIDIITEM>> s;
+	
 			// Notes
 			for (auto& n : notes)
 			{
@@ -1078,17 +1079,33 @@ namespace PR
 				it1.event |= (n.vel << 16);
 				it1.event |= (n.midi << 8);
 				it1.ti.abs = 0; 
-				s.push_back(it1);
+
+				// Find absolute time 
+				auto ti = AbsF(n.p);
+				it1.ti.abs = ti.n * TPB;
+
+				s[n.layer].push_back(it1);
 
 				MIDI::MIDIITEM it2; 
 				it2.event = it1.event;
 				it2.event &= 0xFFFF;
-				it2.ti.delta = TPB; 
-				s.push_back(it2);
+				it2.ti.abs = it1.ti.abs + n.d.n*TPB;
+				s[n.layer].push_back(it2);
 			}
-
+			for (auto& ss : s)
+			{
+				sort(ss.second.begin(), ss.second.end(), [](const MIDI::MIDIITEM & m1, MIDI::MIDIITEM & m2) -> bool
+					{
+						if (m1.ti.abs < m2.ti.abs)
+							return true;
+						return false;
+					});
+			}
 			vector<vector<MIDI::MIDIITEM>> TrackData;
-			TrackData.push_back(s);
+			for (auto& ss : s)
+			{
+				TrackData.push_back(ss.second);
+			}
 			m.Write(0, TPB, TrackData, v);
 		}
 
