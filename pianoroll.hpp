@@ -726,11 +726,19 @@ namespace PR
 		class SIDEDRAW
 		{
 		public:
-			signed int PercPos = 10; // If negative, at right
+			int Width = 120;
 			D2D1_RECT_F full;
 
 		};
 
+
+		bool White(int mm)
+		{
+			mm %= 12;
+			if (mm == 0 || mm == 2 || mm == 4 || mm == 5 || mm == 7 || mm == 9 || mm == 11)
+				return true;
+			return false;
+		}
 
 		class TOPDRAW
 		{
@@ -1023,7 +1031,7 @@ namespace PR
 		{
 
 			// Side Perc
-			e.vv("SidePerc").SetValueInt(side.PercPos);
+			e.vv("SideWidth").SetValueInt(side.Width);
 
 			// View Stuff
 			e.vv("ViewLayers").SetValueInt(ViewLayers);
@@ -1042,7 +1050,7 @@ namespace PR
 		void Unser(XML3::XMLElement& e)
 		{
 			// Side Perc
-			side.PercPos = e.vv("SidePerc").GetValueInt(10);
+			side.Width = e.vv("SideWidth").GetValueInt(150);
 
 			ViewLayers = e.vv("ViewLayers").GetValueInt(1);
 			ViewVelocity = e.vv("ViewVelocity").GetValueInt(1);
@@ -1289,6 +1297,10 @@ namespace PR
 			if (Direction == 0)
 			{
 				float NoteBottomX = (FLOAT)rdr.bottom;
+				if (n < FirstNote)
+				{
+					DebugBreak();
+				}
 				for (auto j = FirstNote; j < n; j++)
 				{
 					NoteBottomX -= HeightAtNote(j);
@@ -1297,6 +1309,18 @@ namespace PR
 				d.bottom = NoteBottomX;
 				d.top = NoteTopX;
 			}
+			if (Direction == 1)
+			{
+				float NoteTopX = (FLOAT)rdr.top;
+				for (auto j = FirstNote; j < n; j++)
+				{
+					NoteTopX += HeightAtNote(j);
+				}
+				float NoteBottomX = NoteTopX + HeightAtNote(n);
+				d.bottom = NoteBottomX;
+				d.top = NoteTopX;
+			}
+
 
 			return d;
 		}
@@ -1685,6 +1709,8 @@ namespace PR
 				if (FirstNote >= 110)
 					return;
 				FirstNote++;
+				if (!White(FirstNote))
+					FirstNote++;
 				Redraw();
 				return;
 			}
@@ -1693,6 +1719,8 @@ namespace PR
 				if (FirstNote <= 0)
 					return;
 				FirstNote--;
+				if (!White(FirstNote))
+					FirstNote--;
 				Redraw();
 				return;
 			}
@@ -2226,14 +2254,15 @@ namespace PR
 				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 
-				if (true)
+				if (false) // Not yet
 				{
 					auto mx = CreatePopupMenu();
-					AppendMenu(mx, MF_STRING, 111, L"Left");
-					AppendMenu(mx, MF_STRING, 112, L"Right");
-					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)mx, L"Piano");
+					AppendMenu(mx, MF_STRING, 111, L"Left,Up increases");
+					AppendMenu(mx, MF_STRING, 112, L"Right,Bottom increases");
+					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)mx, L"Direction and Piano");
 					AppendMenu(m, MF_SEPARATOR, 0, L"");
 				}
+
 				if (true)
 				{
 					auto mx = CreatePopupMenu();
@@ -2368,12 +2397,12 @@ namespace PR
 
 				if (tcmd == 111)
 				{
-					side.PercPos = abs(side.PercPos);
+					Direction = 0;
 					Redraw();
 				}
 				if (tcmd == 112)
 				{
-					side.PercPos = -abs(side.PercPos);
+					Direction = 1;
 					Redraw();
 				}
 
@@ -2629,18 +2658,18 @@ namespace PR
 		{
 			DrawnPiano.clear();
 			// Full
-			if (side.PercPos == 0)
+			if (side.Width == 0)
 				return;
-			if (side.PercPos > 0)
+			if (Direction == 0)
 			{
 				side.full.left = (FLOAT)rc.left;
 				side.full.top = (FLOAT)rc.top;
 				side.full.bottom = (FLOAT)rc.bottom;
-				side.full.right = (side.PercPos * rc.right) / 100.0f;
+				side.full.right = (FLOAT)side.Width;
 			}
 			else
 			{
-				side.full.left = (FLOAT)rc.right - (rc.right * (-side.PercPos)) / 100;
+				side.full.left = (FLOAT)(rc.right - side.Width);
 				side.full.top = (FLOAT)rc.top;
 				side.full.bottom = (FLOAT)rc.bottom;
 				side.full.right = (FLOAT)rc.right;
@@ -2654,11 +2683,33 @@ namespace PR
 			float TotalOct = HeightPerNote * 12;
 			float WhiteSize = TotalOct / 7.0f;
 			float LeftWas = 0;
+			if (DrawedNotes.empty())
+				return;
+			auto first = DrawedNotes[0];
+//			auto fn = first.n % 12;
+			
+/*			if ((first.n % 12) > 0)
+			{
+				// Not C, emulate to find starting point
+				auto d2 = side.full;
+				d2.top = first.full.top;
+				d2.bottom = first.full.bottom;
+				d2.top = d2.bottom - WhiteSize;
+				LeftWas = d2.top;
+				for (int mm = 0; mm < (first.n % 12); mm++)
+				{
+					if (mm == 0 || mm == 2 || mm == 4 || mm == 5 || mm == 7 || mm == 9 || mm == 11)
+					{
+						LeftWas += WhiteSize;
+					}
+				}
+			}
+*/
 			for (auto& a : DrawedNotes)
 			{
 				int m = a.n % 12;
 				//auto height = a.full.bottom - a.full.top;
-				if (m == 0 || m == 2 || m == 4 || m == 5 || m == 7 || m == 9 || m == 11)
+				if (White(m))
 				{
 					auto d2 = side.full;
 					d2.top = a.full.top;
@@ -2691,6 +2742,7 @@ namespace PR
 				}
 
 			}
+
 			for (auto& a : DrawedNotes)
 			{
 				int m = a.n % 12;
@@ -2702,7 +2754,7 @@ namespace PR
 					d2.bottom = a.full.bottom;
 					d2.bottom += 1;
 					d2.top -= 1;
-					if (side.PercPos > 0)
+					if (Direction == 0)
 						d2.right = 2 * (d2.right - d2.left) / 3;
 					else
 						d2.left += 1 * (d2.right - d2.left) / 3;
@@ -2728,7 +2780,7 @@ namespace PR
 			if (top.he > 0)
 			{
 				top.full.left = (FLOAT)rc.left;
-				if (side.PercPos > 0)
+				if (Direction == 0)
 					top.full.left = side.full.right;
 				top.full.top = (FLOAT)rc.top;
 				top.full.right = (FLOAT)rc.right;
@@ -2738,7 +2790,7 @@ namespace PR
 			{
 				top.full.top = (FLOAT)rc.bottom + top.he;
 				top.full.left = (FLOAT)rc.left;
-				if (side.PercPos > 0)
+				if (Direction == 0)
 					top.full.left = side.full.right;
 				top.full.bottom = (FLOAT)rc.bottom;
 				top.full.right = (FLOAT)rc.right;
@@ -2778,7 +2830,7 @@ namespace PR
 			if (info.he > 0)
 			{
 				info.full.left = (FLOAT)rc.left;
-				if (side.PercPos > 0)
+				if (Direction == 0)
 					info.full.left = side.full.right;
 				info.full.top = (FLOAT)rc.top;
 				info.full.right = (FLOAT)rc.right;
@@ -2788,7 +2840,7 @@ namespace PR
 			{
 				info.full.top = (FLOAT)rc.bottom + info.he;
 				info.full.left = (FLOAT)rc.left;
-				if (side.PercPos > 0)
+				if (Direction == 0)
 					info.full.left = side.full.right;
 				info.full.bottom = (FLOAT)rc.bottom;
 				info.full.right = (FLOAT)rc.right;
@@ -2854,7 +2906,7 @@ namespace PR
 
 			// Horzs
 			DrawedNotes.clear();
-			for (auto c1 = FirstNote; ; c1++)
+			for (auto c1 = FirstNote ; ; c1++)
 			{
 				if (c1 > 128)
 					break;
@@ -2891,15 +2943,15 @@ namespace PR
 			TotalWidthForMusic = 0;
 			LeftWidthForMusic = 0;
 			float StartX = (float)rc.left;
-			if (side.PercPos > 0)
-				StartX = rc.left + (side.PercPos * rc.right) / 100.0f;
+			if (Direction == 0)
+				StartX = (FLOAT)rc.left + (FLOAT)side.Width;
 			DrawnMeasures.clear();
 			int End = 0;
 			int EndVisible = 0;
 			auto FarStartX = StartX;
 			StartX -= ScrollX;
 
-			if (side.PercPos > 0)
+			if (Direction == 0)
 			{
 				D2D1_POINT_2F p1, p2;
 				p1.y = (FLOAT)rc.top;
@@ -3013,6 +3065,8 @@ namespace PR
 				f.right = f.left + (bw * DENOM * n.d.r());
 
 				// Find the note
+				if (n.midi < FirstNote)
+					continue;
 				if ((n.midi - FirstNote) >= (int)DrawedNotes.size())
 					continue;
 				auto & dn = DrawedNotes[n.midi - FirstNote];
