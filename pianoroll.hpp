@@ -2679,45 +2679,74 @@ namespace PR
 			p->FillRectangle(side.full, SideBrush);
 
 			// White keys
-			float HeightPerNote = HeightAtNote(0);
-			float TotalOct = HeightPerNote * 12;
-			float WhiteSize = TotalOct / 7.0f;
-			float LeftWas = 0;
 			if (DrawedNotes.empty())
 				return;
 			auto first = DrawedNotes[0];
-//			auto fn = first.n % 12;
-			
-/*			if ((first.n % 12) > 0)
+			auto fn = first.n % 12;
+			float HeightPerNote = HeightAtNote(0);
+			float TotalOct = HeightPerNote * 12;
+			float WhiteSize = TotalOct / 7.0f;
+			if (fn == 2) // Start from D
 			{
-				// Not C, emulate to find starting point
-				auto d2 = side.full;
-				d2.top = first.full.top;
-				d2.bottom = first.full.bottom;
-				d2.top = d2.bottom - WhiteSize;
-				LeftWas = d2.top;
-				for (int mm = 0; mm < (first.n % 12); mm++)
-				{
-					if (mm == 0 || mm == 2 || mm == 4 || mm == 5 || mm == 7 || mm == 9 || mm == 11)
-					{
-						LeftWas += WhiteSize;
-					}
-				}
+				TotalOct = HeightPerNote * 10;
+				WhiteSize = TotalOct / 6.0f;
 			}
-*/
+			if (fn == 4) // Start from E
+			{
+				TotalOct = HeightPerNote * 8;
+				WhiteSize = TotalOct / 5.0f;
+			}
+			if (fn == 5) // Start from F
+			{
+				TotalOct = HeightPerNote * 7;
+				WhiteSize = TotalOct / 4.0f;
+			}
+			if (fn == 7) // Start from G
+			{
+				TotalOct = HeightPerNote * 5;
+				WhiteSize = TotalOct / 3.0f;
+			}
+			if (fn == 9) // Start from A
+			{
+				TotalOct = HeightPerNote * 3;
+				WhiteSize = TotalOct / 2.0f;
+			}
+			if (fn == 11) // Start from B
+			{
+				TotalOct = HeightPerNote * 1;
+				WhiteSize = TotalOct / 1.0f;
+			}
+
+			float LeftWas = 0;
+			int Added = 0;
+
+
+
+			bool FirstEntry = true;
 			for (auto& a : DrawedNotes)
 			{
 				int m = a.n % 12;
 				//auto height = a.full.bottom - a.full.top;
+
+				if (m == 0) // Reset sizes
+				{
+					TotalOct = HeightPerNote * 12;
+					WhiteSize = TotalOct / 7.0f;
+				}
+
 				if (White(m))
 				{
 					auto d2 = side.full;
 					d2.top = a.full.top;
 					d2.bottom = a.full.bottom;
 
-					if (m == 0)
+					d2.bottom += Added;
+					d2.top += Added;
+					Added = 0;
+
+					if (FirstEntry)
 					{
-						// C
+						FirstEntry = false;
 						d2.top = d2.bottom - WhiteSize;
 						LeftWas = d2.top;
 					}
