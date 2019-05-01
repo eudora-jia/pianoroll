@@ -20,6 +20,8 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Callbacks
 * Tools - Auto, Eraser, Single click entry
 * Serialization/Deserialization to XML
+* Key per measure
+* Time signature per measure
 
 ## Callbacks
 Your callbacks are notified when:

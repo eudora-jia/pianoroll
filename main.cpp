@@ -164,6 +164,37 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 			x.Save();
 
 		}
+/*
+		Not yet completed
+		if (ww == VK_F6)
+		{
+			// Save MIDI
+
+			OPENFILENAME of = { 0 };
+			of.lStructSize = sizeof(of);
+			of.hwndOwner = hh;
+			of.lpstrFilter = L"*.mid\0*.mid\0\0";
+			vector<wchar_t> fnx(10000);
+			of.lpstrFile = fnx.data();
+			of.nMaxFile = 10000;
+			of.lpstrDefExt = L"xml";
+			of.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT | OFN_EXPLORER;
+			if (!GetSaveFileName(&of))
+				return 0;
+
+
+			vector<unsigned char> mmf;
+			prx.ToMidi(mmf);
+			HANDLE hF = CreateFile(fnx.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
+			if (hF != INVALID_HANDLE_VALUE)
+			{
+				DWORD A = 0;
+				WriteFile(hF, mmf.data(), mmf.size(), &A, 0);
+				CloseHandle(hF);
+			}
+			return 0;
+		}
+*/
 		if (ww == VK_F7)
 		{
 			// Save

@@ -35,6 +35,218 @@ namespace PR
 {
 	using namespace std;
 
+	class MIDI
+	{
+	public:
+
+		struct MIDITIME
+		{
+			unsigned long long abs = 0;
+			unsigned long delta = 0;
+		};
+
+		struct MIDIITEM
+		{
+			MIDITIME ti;
+			DWORD event = 0;
+			char ff = 0;
+			vector<char> data; // For FF
+
+			void Tempo(int n)
+			{
+				// microseconds per quarter note
+				event = 0;
+				ff = 0x51;
+				data.resize(3);
+
+				// 120 bpm = 500000
+				// n       = ?
+				long long bu = (500000LL * 120) / n;
+				data[0] = (bu >> 16) & 0xFF;
+				data[1] = (bu >> 8) & 0xFF;
+				data[2] = (bu) & 0xFF;
+			}
+
+			void Time(int n, int d, int bb = 8)
+			{
+				event = 0;
+				ff = 0x58;
+				data.resize(4);
+
+				// Form, n/2^d
+				data[0] = (char)n;
+				data[1] = (char)pow(2, d);
+				data[2] = 1;
+				data[3] = (char)bb;
+			}
+
+			void Key(signed int sf, int mode)
+			{
+				event = 0;
+				ff = 0x59;
+				data.resize(2);
+				data[0] = (char)sf;
+				data[1] = (char)mode;
+			}
+
+
+			void End()
+			{
+				event = 0;
+				ff = 0x2F;
+				data.resize(0);
+			}
+
+		};
+
+	private:
+
+		void WriteVarLen(long value, vector<unsigned char>& b)
+		{
+			unsigned long long buffer = value & 0x7f;
+			while ((value >>= 7) > 0)
+			{
+				buffer <<= 8;
+				buffer |= 0x80;
+				buffer += (value & 0x7f);
+			}
+
+			for (;;)
+			{
+				b.push_back((char)buffer);
+				if (buffer & 0x80)
+					buffer >>= 8;
+				else
+					break;
+			}
+		}
+
+	public:
+
+		void MetaInsert(MIDIITEM& e, vector<unsigned char>& d)
+		{
+			vector<unsigned char>& h1 = d;
+			h1.resize(3);
+			h1[0] = 0xFF;
+			h1[1] = e.ff;
+			h1[2] = (char)e.data.size();
+			h1.insert(h1.end(), e.data.begin(), e.data.end());
+
+		}
+
+		void Write(int UseFormat, int TPB, vector<vector<MIDIITEM>>& TrackData, vector<unsigned char>& d)
+		{
+			int Tempo = 120;
+
+			// Header, tpb
+			vector<char>hdr(11);
+			if (UseFormat == 0)
+				memcpy(hdr.data(), "\x4D\x54\x68\x64\x00\x00\x00\x06\x00\x00\x00", 11);
+			if (UseFormat == 1)
+				memcpy(hdr.data(), "\x4D\x54\x68\x64\x00\x00\x00\x06\x00\x01\x00", 11);
+			if (UseFormat == 2)
+				memcpy(hdr.data(), "\x4D\x54\x68\x64\x00\x00\x00\x06\x00\x02\x00", 11);
+
+			auto nT = TrackData.size();
+			d.insert(d.end(), hdr.begin(), hdr.end());
+			d.push_back((char)nT); // Up to 256 tracks
+
+			// TPB
+			d.push_back((TPB >> 8) & 0xFF);
+			d.push_back(TPB & 0xFF);
+
+
+			// All tracks
+			for (size_t t = 0; t < nT; t++)
+			{
+				auto& events = TrackData[t];
+				bool HasOff = false;
+
+				vector<char> td;
+
+				// Header
+				vector<char> thdr(4);
+				memcpy(thdr.data(), "\x4D\x54\x72\x6B", 4);
+				d.insert(d.end(), thdr.begin(), thdr.end());
+
+				// data
+				DWORD prevdt = 0;
+				for (auto& it : events)
+				{
+
+					unsigned char XE = it.event & 0xFF;
+					DWORD dt = 0;
+
+					if (it.ti.abs)
+					{
+						dt = (DWORD)it.ti.abs - prevdt;
+						prevdt += dt;
+					}
+					else
+					{
+						dt = it.ti.delta;
+						prevdt += dt;
+					}
+
+
+					// dt, ev
+					vector<unsigned char> h1;
+					WriteVarLen(dt, h1);
+					td.insert(td.end(), h1.begin(), h1.end());
+
+					if ((XE >= 0x90 && XE <= 0x9F) || (XE >= 0x80 && XE <= 0x8F) || (XE >= 0xA0 && XE <= 0xAF) || (XE >= 0xB0 && XE <= 0xBF) || (XE >= 0xE0 && XE <= 0xEF))
+					{
+						h1.resize(3);
+						memcpy(h1.data(), &it.event, 3);
+					}
+					else
+						if ((XE >= 0xC0 && XE <= 0xCF) || (XE >= 0xD0 && XE <= 0xDF))
+						{
+							h1.resize(2);
+							memcpy(h1.data(), &it.event, 2);
+						}
+						else
+						{
+							// 0xFX
+							// Code, length, data
+							MetaInsert(it, h1);
+							if (it.ff == 0x2F)
+								HasOff = true;
+						}
+
+					td.insert(td.end(), h1.begin(), h1.end());
+
+
+				}
+
+				// Footer
+				MIDIITEM it;
+				it.End();
+
+				if (!HasOff)
+				{
+					thdr.resize(4);
+					memcpy(thdr.data(), "\x0\xFF\x2F\x00", 4);
+					td.insert(td.end(), thdr.begin(), thdr.end());
+				}
+
+				// Write it
+				unsigned long MidiDataBytes = td.size();
+				d.push_back((MidiDataBytes >> 24));
+				d.push_back((MidiDataBytes >> 16) & 0xFF);
+				d.push_back((MidiDataBytes >> 8) & 0xFF);
+				d.push_back((MidiDataBytes) & 0xFF);
+				d.insert(d.end(), td.begin(), td.end());
+
+			}
+
+
+		}
+
+	};
+
+
+
 	class PIANOROLL;
 	class NOTE;
 #ifdef _WIN64
@@ -541,6 +753,78 @@ namespace PR
 			float nh = 20.0;
 		};
 
+		class KEY
+		{
+		public:
+			wchar_t t[50];
+			size_t atm = 0; // at measure
+			signed int k = 0; // -7 to +7
+			int m = 0; // 0 major 1 minor
+			vector<int> Scale;
+
+			wchar_t* Txt()
+			{
+				swprintf_s(t, 50, L"K %i", k);
+				return t;
+			}
+
+			bool operator ==(const KEY& kk) const
+			{
+				if (k == kk.k && m == kk.m)
+					return true;
+				return false;
+			}
+			bool operator<(const KEY& kk)
+			{
+				if (m < kk.m)
+					return true;
+				return false;
+			}
+
+			bool BelongsToScale(int mm)
+			{
+				if (std::find(Scale.begin(), Scale.end(), mm % 12) == Scale.end())
+					return false;
+				return true;
+			}
+			void CreateScale()
+			{
+				Scale.clear();
+				unsigned int fi = 0x48; // C
+				if (k > 0)
+					fi = (7 * k) % 12;
+
+				if (m == 1)
+					fi -= 3;
+
+				fi = fi % 12;
+				if (m == 1)
+				{
+					Scale.push_back(fi);
+					Scale.push_back(fi + 2);
+					Scale.push_back(fi + 3);
+					Scale.push_back(fi + 5);
+					Scale.push_back(fi + 7);
+					Scale.push_back(fi + 8);
+					Scale.push_back(fi + 11);
+				}
+				else
+					if (m == 0)
+					{
+						Scale.push_back(fi);
+						Scale.push_back(fi + 2);
+						Scale.push_back(fi + 4);
+						Scale.push_back(fi + 5);
+						Scale.push_back(fi + 7);
+						Scale.push_back(fi + 9);
+						Scale.push_back(fi + 11);
+
+					}
+				for (auto& e : Scale)
+					e = e % 12;
+			}
+
+		};
 		class TIME
 		{
 		public:
@@ -606,53 +890,8 @@ namespace PR
 		int Direction = 0; // 0 up, 1 down
 		int FirstNote = 48;
 		float ScrollX = 0;
-		int Key = 0;
-		int Mode = 0;
 		int Tool = 0; // 0 Auto, 1 Eraser, 2 Single entry
 
-		vector<int> Scale;
-		bool BelongsToScale(int m, vector<int> & s)
-		{
-			if (std::find(s.begin(), s.end(), m % 12) == s.end())
-				return false;
-			return true;
-		}
-		void CreateScale(int k, int m, vector<int> & midis)
-		{
-			midis.clear();
-			unsigned int fi = 0x48; // C
-			if (k > 0)
-				fi = (7 * k) % 12;
-
-			if (m == 1)
-				fi -= 3;
-
-			fi = fi % 12;
-			if (m == 1)
-			{
-				Scale.push_back(fi);
-				Scale.push_back(fi + 2);
-				Scale.push_back(fi + 3);
-				Scale.push_back(fi + 5);
-				Scale.push_back(fi + 7);
-				Scale.push_back(fi + 8);
-				Scale.push_back(fi + 11);
-			}
-			else
-				if (m == 0)
-				{
-					Scale.push_back(fi);
-					Scale.push_back(fi + 2);
-					Scale.push_back(fi + 4);
-					Scale.push_back(fi + 5);
-					Scale.push_back(fi + 7);
-					Scale.push_back(fi + 9);
-					Scale.push_back(fi + 11);
-
-				}
-			for (auto& e : Scale)
-				e = e % 12;
-		}
 
 		vector<int> HiddenLayers;
 
@@ -711,6 +950,7 @@ namespace PR
 		size_t LeftWidthForMusic = 0;
 		vector<HEIGHT> Heights = { HEIGHT() };
 		vector<TIME> Times = { TIME() };
+		vector<KEY> Keys = { KEY() };
 		HCURSOR CursorArrow = 0, CursorResize = 0;
 		unsigned int snapres = 1;
 		signed int noteres = -1; // bars 
@@ -773,7 +1013,8 @@ namespace PR
 		PIANOROLL(HWND hp = 0)
 		{
 			hParent = hp;
-			CreateScale(Key, Mode, Scale);
+			Keys.resize(1);
+			Keys[0].CreateScale();
 			CursorResize = LoadCursor(0, IDC_SIZEWE);
 			CursorArrow = LoadCursor(0, IDC_HAND);
 		}
@@ -818,6 +1059,38 @@ namespace PR
 			std::sort(notes.begin(), notes.end());
 		}
 
+		void ToMidi(vector<unsigned char>& v)
+		{
+			MIDI m;
+			vector<MIDI::MIDIITEM> s;
+			int TPB = 960;
+			MIDI::MIDIITEM Tempo;
+			Tempo.Tempo(120);
+			s.push_back(Tempo);
+
+			// Notes
+			for (auto& n : notes)
+			{
+				MIDI::MIDIITEM it1; 
+				it1.event = 0;
+				it1.event = 0x90;
+				it1.event |= n.ch;
+				it1.event |= (n.vel << 16);
+				it1.event |= (n.midi << 8);
+				it1.ti.abs = 0; 
+				s.push_back(it1);
+
+				MIDI::MIDIITEM it2; 
+				it2.event = it1.event;
+				it2.event &= 0xFFFF;
+				it2.ti.delta = TPB; 
+				s.push_back(it2);
+			}
+
+			vector<vector<MIDI::MIDIITEM>> TrackData;
+			TrackData.push_back(s);
+			m.Write(0, TPB, TrackData, v);
+		}
 
 		void SetWindow(HWND hp)
 		{
@@ -974,6 +1247,17 @@ namespace PR
 			{
 				if (t.atm <= im)
 					tt = t;
+			}
+			return tt;
+		}
+
+		KEY KeyAtMeasure(size_t im)
+		{
+			KEY tt;
+			for (auto& k : Keys)
+			{
+				if (k.atm <= im)
+					tt = k;
 			}
 			return tt;
 		}
@@ -1470,6 +1754,7 @@ namespace PR
 						continue;
 					if (n.Selected)
 					{
+						KEY k = KeyAtMeasure(n.p.m);
 						NOTE nn = n;
 						if ((ww == VK_ADD || ww == VK_OEM_PLUS))
 						{
@@ -1480,7 +1765,7 @@ namespace PR
 								for (;;)
 								{
 									nn.midi++;
-									if (BelongsToScale(nn.midi, Scale))
+									if (k.BelongsToScale(nn.midi))
 										break;
 								}
 							}
@@ -1493,7 +1778,7 @@ namespace PR
 								for (;;)
 								{
 									nn.midi--;
-									if (BelongsToScale(nn.midi, Scale))
+									if (k.BelongsToScale(nn.midi))
 										break;
 								}
 							}
@@ -1903,7 +2188,8 @@ namespace PR
 			}
 			else
 			{
-				// Selected menu
+				// Not Selected menu
+				KEY k = KeyAtMeasure(hp.m);
 				auto m = CreatePopupMenu();
 				wchar_t re[1000] = { 0 };
 
@@ -1914,8 +2200,9 @@ namespace PR
 				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m0, L"Tool");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 
+
 				auto m1 = CreatePopupMenu();
-				swprintf_s(re, L"Set current (Current: %i)\t", Key);
+				swprintf_s(re, L"Set (Current: %i)\t", k.k);
 				AppendMenu(m1, MF_STRING, 1, re);
 				AppendMenu(m1, MF_STRING, 2, L"Mode Major");
 				AppendMenu(m1, MF_STRING, 3, L"Mode Minor");
@@ -1996,22 +2283,28 @@ namespace PR
 				DestroyMenu(m);
 				if (tcmd == 1)
 				{
-					swprintf_s(re, L"%i", Key);
+					swprintf_s(re, L"%i", k.k);
 					if (!AskText(hParent, L"Key", L"Enter key:", re))
 						return;
-					Key = _wtoi(re);
-					CreateScale(Key, Mode, Scale);
+					KEY k2 = k;
+					k2.k = _wtoi(re);
+					if (k2.k < -7 || k.k > 7)
+						k2.k = 0;
+					k2.CreateScale();
+					k2.atm = hp.m;
+					Keys.push_back(k2);
+					sort(Keys.begin(), Keys.end());
 					Redraw();
 				}
 				if (tcmd == 2 || tcmd == 3)
 				{
-					Mode = (tcmd == 2) ? 0 : 1;
-					CreateScale(Key, Mode, Scale);
+					k.k = (tcmd == 2) ? 0 : 1;
+					k.CreateScale();
 					Redraw();
 				}
 				if (tcmd == 4)
 				{
-					swprintf_s(re, L"%i", Key);
+					swprintf_s(re, L"");
 					if (!AskText(hParent, L"Beats", L"Enter beats:", re))
 						return;
 					int nb = _wtoi(re);
@@ -2277,6 +2570,44 @@ namespace PR
 		}
 
 
+		void Message(UINT mm, WPARAM ww, LPARAM ll)
+		{
+			switch (mm)
+			{
+				case WM_KEYDOWN:
+				case WM_SYSKEYDOWN:
+				{
+					KeyDown(ww, ll);
+					break;
+				}
+				case WM_MOUSEMOVE:
+				{
+					MouseMove(ww, ll);
+					break;
+				}
+				case WM_LBUTTONDOWN:
+				{
+					LeftDown(ww, ll);
+					break;
+				}
+				case WM_LBUTTONUP:
+				{
+					LeftUp(ww, ll);
+					break;
+				}
+				case WM_LBUTTONDBLCLK:
+				{
+					LeftDoubleClick(ww, ll);
+					break;
+				}
+				case WM_RBUTTONDOWN:
+				{
+					RightDown(ww, ll);
+					break;
+				}
+			}
+		}
+
 		void PaintSide(ID2D1RenderTarget * p, RECT rc)
 		{
 			DrawnPiano.clear();
@@ -2453,7 +2784,8 @@ namespace PR
 			f4.top = info.full.top + 2;
 			f4.bottom = info.full.bottom - 2;
 			wchar_t* tls[] = {L"Auto",L"Eraser",L"Single entry"};
-			swprintf_s(ly, 200, L"%s L %u R%s%i K %i ", tls[Tool],NextLayer + 1, noteres > 0 ? L" 1/" : L" ", noteres > 0 ? noteres : -noteres,Key);
+			KEY k0 = KeyAtMeasure(DrawnMeasures[0].im);
+			swprintf_s(ly, 200, L"%s L %u R%s%i %s", tls[Tool],NextLayer + 1, noteres > 0 ? L" 1/" : L" ", noteres > 0 ? noteres : -noteres,k0.Txt());
 			Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 			Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 			p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
@@ -2462,7 +2794,12 @@ namespace PR
 			for (size_t i = 1 ; i < DrawnMeasures.size() ; i++)
 			{
 				auto& d = DrawnMeasures[i];
-				swprintf_s(ly, 200, L"%llu", (unsigned long long)d.im + 1);
+				KEY k1 = KeyAtMeasure(d.im);
+				if (k1 == k0)
+					swprintf_s(ly, 200, L"%llu", (unsigned long long)d.im + 1);
+				else
+					swprintf_s(ly, 200, L"%llu %s", (unsigned long long)d.im + 1,k1.Txt());
+				k0 = k1;
 				D2D1_RECT_F f5 = f4;
 				f5.left = d.full.left;
 				p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f5, BlackBrush);
@@ -2564,6 +2901,7 @@ namespace PR
 			for (size_t m = 0; ; m++)
 			{
 				auto time = TimeAtMeasure(m);
+				bool WasDrown = false;
 				DRAWNMEASURESANDBEATS dd;
 				dd.im = m;
 				//	auto SaveStartX = StartX;
@@ -2604,6 +2942,7 @@ namespace PR
 					dd.Beats.push_back(dbb);
 					if (E <= rc.right && p1.x > FarStartX)
 					{
+						WasDrown = true;
 						p->DrawLine(p1, p2, LineBrush, ib == (time.nb - 1) ? MeasureStroke : BarStroke);
 						if (snapres > 1 && E <= rc.right)
 						{
@@ -2628,7 +2967,7 @@ namespace PR
 					break;
 				if (LastMeasureWithNote >= m)
 					TotalWidthForMusic += (size_t)(dd.full.right - dd.full.left);
-				if (EndVisible == 0)
+				if (EndVisible == 0 && WasDrown)
 					DrawnMeasures.push_back(dd);
 			}
 
@@ -2724,7 +3063,8 @@ namespace PR
 					f4.bottom = f.bottom - 10;
 
 					wchar_t ly[100] = { 0 };
-					MidiNoteName(ly, n.midi, Key, Mode);
+					KEY k = KeyAtMeasure(n.p.m);
+					MidiNoteName(ly, n.midi, k.k,k.m);
 					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
