@@ -1312,10 +1312,10 @@ namespace PR
 			if (Direction == 1)
 			{
 				float NoteTopX = (FLOAT)rdr.top;
+				NoteTopX += (top.full.bottom - top.full.top);
+				NoteTopX += (info.full.bottom - info.full.top);
 				for (auto j = FirstNote; j < n; j++)
-				{
 					NoteTopX += HeightAtNote(j);
-				}
 				float NoteBottomX = NoteTopX + HeightAtNote(n);
 				d.bottom = NoteBottomX;
 				d.top = NoteTopX;
@@ -2254,7 +2254,7 @@ namespace PR
 				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 
-				if (false) // Not yet
+				if (true) 
 				{
 					auto mx = CreatePopupMenu();
 					AppendMenu(mx, MF_STRING, 111, L"Left,Up increases");
@@ -2675,6 +2675,8 @@ namespace PR
 				side.full.right = (FLOAT)rc.right;
 			}
 
+			if (Direction == 1)
+				return; // Not yet done
 
 			p->FillRectangle(side.full, SideBrush);
 
@@ -2747,13 +2749,19 @@ namespace PR
 					if (FirstEntry)
 					{
 						FirstEntry = false;
-						d2.top = d2.bottom - WhiteSize;
+						if (Direction == 1)
+							d2.top = d2.bottom + WhiteSize;
+						else
+							d2.top = d2.bottom - WhiteSize;
 						LeftWas = d2.top;
 					}
 					else
 					{
 						d2.bottom = LeftWas;
-						d2.top = d2.bottom - WhiteSize;
+						if (Direction == 1)
+							d2.top = d2.bottom + WhiteSize;
+						else
+							d2.top = d2.bottom - WhiteSize;
 						LeftWas = d2.top;
 					}
 
@@ -2933,7 +2941,7 @@ namespace PR
 			p->Clear(bg);
 
 
-			// Horzs
+			// Lines
 			DrawedNotes.clear();
 			for (auto c1 = FirstNote ; ; c1++)
 			{
@@ -2956,8 +2964,11 @@ namespace PR
 				p1.y = e.top;
 				p2.x = e.right;
 				p2.y = e.top;
-				if ((c1 % 12) == 11)
+				if ((c1 % 12) == 11 && Direction == 0)
 					p->DrawLine(p1, p2, LineBrush,2.0f);
+				else
+				if ((c1 % 12) == 0 && Direction == 1)
+					p->DrawLine(p1, p2, LineBrush, 2.0f);
 				else
 					p->DrawLine(p1, p2, LineBrush, 1.0f);
 
