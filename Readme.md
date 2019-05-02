@@ -23,6 +23,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Key per measure
 * Time signature per measure
 * MIDI export (working, not 100% completed yet)
+* Non-note MIDI notes
 
 ## Callbacks
 Your callbacks are notified when:
@@ -58,6 +59,7 @@ Your callbacks are notified when:
 
 ## Mouse
 * Dblclick : insert note (auto tool) 
+* Control + Dblclick : insert non note event
 * Dblclick on note : remove note
 * Click on note : select/unselect
 * Drag outside note: select (insert in single entry tool, delete in eraser tool)

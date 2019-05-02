@@ -136,8 +136,6 @@ namespace PR
 
 		void Write(int UseFormat, int TPB, vector<vector<MIDIITEM>>& TrackData, vector<unsigned char>& d)
 		{
-			int Tempo = 120;
-
 			// Header, tpb
 			vector<char>hdr(11);
 			if (UseFormat == 0)
@@ -583,6 +581,11 @@ namespace PR
 		// And a non note event
 		DWORD nonote = 0;
 
+		// And FF events (specific like tempo etc and Sysex)
+		bool HasMetaEvent = 0;
+		unsigned char MetaEvent = 0;
+		vector<unsigned char> MetaEventData;
+
 		D2D1_RECT_F dr;
 
 		void Ser(XML3::XMLElement& e) const
@@ -592,6 +595,14 @@ namespace PR
 			e.vv("c").SetValueInt(ch);
 			e.vv("v").SetValueInt(vel);
 			e.vv("m").SetValueInt(midi);
+
+			if (HasMetaEvent)
+			{
+				e.vv("f1").SetValueUInt(HasMetaEvent);
+				e.vv("f2").SetValueUInt(MetaEvent);
+				e.vv("f3").SetBinaryValue((const char*)MetaEventData.data(), MetaEventData.size());
+			}
+
 			p.Ser(e["pos"]);
 			d.Ser(e["dur"]);
 		}
@@ -602,6 +613,16 @@ namespace PR
 			vel = e.vv("v").GetValueInt();
 			midi = e.vv("m").GetValueInt();
 			nonote = e.vv("e").GetValueUInt();
+
+			HasMetaEvent = e.vv("f1").GetValueUInt(0);
+			if (HasMetaEvent)
+			{
+				MetaEvent = (unsigned char)e.vv("f2").GetValueUInt(0);
+				auto b = e.vv("f3").GetBinaryValue();
+				MetaEventData.resize(b.size());
+				memcpy(MetaEventData.data(), b.p(), b.size());
+			}
+
 			p.Unser(e["pos"]);
 			d.Unser(e["dur"]);
 		}
@@ -1072,15 +1093,16 @@ namespace PR
 			std::sort(notes.begin(), notes.end());
 		}
 
-		void ToMidi(vector<unsigned char>& v)
+		void ToMidi(vector<unsigned char>& v,int tempo = 120)
 		{
 			MIDI m;
-			int TPB = 960;
-//			MIDI::MIDIITEM Tempo;
-//			Tempo.Tempo(120);
-//			s.push_back(Tempo);
-
 			map<int, vector<MIDI::MIDIITEM>> s;
+
+			int TPB = 960;
+			MIDI::MIDIITEM Tempo;
+			Tempo.Tempo(tempo);
+			s[0].push_back(Tempo);
+
 	
 			// Notes
 			for (auto& n : notes)

@@ -190,13 +190,14 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 
 
 			vector<unsigned char> mmf;
-			prx.ToMidi(mmf);
+			prx.ToMidi(mmf,120);
 			HANDLE hF = CreateFile(fnx.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 			if (hF != INVALID_HANDLE_VALUE)
 			{
 				DWORD A = 0;
 				WriteFile(hF, mmf.data(), mmf.size(), &A, 0);
 				CloseHandle(hF);
+				ShellExecute(hh, L"open", fnx.data(), 0, 0, SW_SHOWNORMAL);
 			}
 			return 0;
 		}
