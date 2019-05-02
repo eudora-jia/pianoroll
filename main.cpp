@@ -71,6 +71,8 @@ public:
 	}
 	virtual HRESULT NoteAdded(PIANOROLL*, NOTE* n)
 	{
+		if (n->nonote > 0)
+			return S_FALSE;
 		Play(n->midi, n->vel);
 		return S_OK;
 	}
@@ -88,6 +90,8 @@ public:
 	{
 		if (n1->midi != n2->midi || n1->vel != n2->vel)
 		{
+			if (n2->nonote > 0)
+				return S_FALSE;
 			Play(n2->midi, n2->vel);
 		}
 		return S_OK;
@@ -95,6 +99,8 @@ public:
 	virtual HRESULT OnNoteSelect(PIANOROLL*, NOTE* n, bool s)
 	{
 		if (!s)
+			return S_OK;
+		if (n->nonote > 0)
 			return S_OK;
 		Play(n->midi, n->vel);
 		return S_OK;

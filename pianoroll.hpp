@@ -580,10 +580,14 @@ namespace PR
 		int ch = 0;
 		int layer = 0;
 
+		// And a non note event
+		DWORD nonote = 0;
+
 		D2D1_RECT_F dr;
 
 		void Ser(XML3::XMLElement& e) const
 		{
+			e.vv("e").SetValueUInt(nonote);
 			e.vv("l").SetValueInt(layer);
 			e.vv("c").SetValueInt(ch);
 			e.vv("v").SetValueInt(vel);
@@ -594,9 +598,10 @@ namespace PR
 		void Unser(XML3::XMLElement& e) 
 		{
 			layer = e.vv("l").GetValueInt();
-			ch = e.vv("c").GetValueInt(ch);
-			vel = e.vv("v").GetValueInt(vel);
-			midi = e.vv("m").GetValueInt(midi);
+			ch = e.vv("c").GetValueInt();
+			vel = e.vv("v").GetValueInt();
+			midi = e.vv("m").GetValueInt();
+			nonote = e.vv("e").GetValueUInt();
 			p.Unser(e["pos"]);
 			d.Unser(e["dur"]);
 		}
@@ -1080,6 +1085,21 @@ namespace PR
 			// Notes
 			for (auto& n : notes)
 			{
+				if (n.nonote > 0)
+				{
+					MIDI::MIDIITEM it1;
+					it1.event = 0;
+					it1.event = n.nonote;
+					it1.ti.abs = 0;
+
+					// Find absolute time 
+					auto ti = AbsF(n.p);
+					it1.ti.abs = ti.n * TPB;
+
+					s[n.layer].push_back(it1);
+					continue;
+				}
+
 				MIDI::MIDIITEM it1; 
 				it1.event = 0;
 				it1.event = 0x90;
@@ -2546,6 +2566,10 @@ namespace PR
 			if (Tool == 1)
 				return;
 
+//			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+			bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
+//			bool Alt = ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+
 			bool U = false;
 			// Find note there
 			auto ni = NoteAtPos(LOWORD(ll), HIWORD(ll));
@@ -2578,6 +2602,18 @@ namespace PR
 					return;
 				// Insert note
 				NOTE nx;
+
+				if (Control)
+				{
+					vector<wchar_t> re(1000);
+					swprintf_s(re.data(), 1000,L"0x000000");
+					if (!AskText(hParent, L"Hex Code", L"Enter hex code for event:", re.data()))
+						return;
+
+					std::wstringstream ss;
+					ss << std::hex << re.data();
+					ss >> nx.nonote;
+				}
 				nx.midi = e2;
 				nx.p.m = e1.m;
 				nx.p.f = e1.f;
@@ -3126,8 +3162,24 @@ namespace PR
 					p->FillRoundedRectangle(fr, NoteBrush1);
 				n.dr = f;
 
+				if (n.nonote > 0)
+				{
+					auto f4 = f;
+					f4.left += 2;
+					f4.right -= 2;
+					f4.top += 10;
+					f4.bottom = f.bottom - 10;
+
+					wchar_t ly[100] = { 0 };
+					swprintf_s(ly, 100, L"0x%06X", n.nonote);
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+
+				}
+
 				// Velocity
-				if (ViewVelocity)
+				if (ViewVelocity && n.nonote == 0)
 				{
 					auto f2 = f;
 					f2.left += 10;
@@ -3144,7 +3196,7 @@ namespace PR
 				}
 
 				// Channel
-				if (ViewChannels)
+				if (ViewChannels && n.nonote == 0)
 				{
 					auto f3 = f;
 					f3.left += 10;
@@ -3174,11 +3226,14 @@ namespace PR
 					f4.bottom = f.bottom - 10;
 
 					wchar_t ly[100] = { 0 };
-					KEY k = KeyAtMeasure(n.p.m);
-					MidiNoteName(ly, n.midi, k.k,k.m);
-					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
-					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+					if (n.nonote == 0)
+					{
+						KEY k = KeyAtMeasure(n.p.m);
+						MidiNoteName(ly, n.midi, k.k, k.m);
+						Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+						Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+						p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+					}
 
 					swprintf_s(ly, 100, L"%u", n.layer + 1);
 					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
