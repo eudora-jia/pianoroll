@@ -523,6 +523,14 @@ namespace PR
 			return true;
 		return false;
 	}
+	bool operator <=(const FRACTION& a, const FRACTION& b)
+	{
+		return !operator>(a,b);
+	}
+	bool operator >=(const FRACTION& a, const FRACTION& b)
+	{
+		return !operator<(a, b);
+	}
 
 
 	class ABSPOSITION
@@ -554,6 +562,40 @@ namespace PR
 			if (beats == b.beats && f == b.f)
 				return true;
 				return false;
+		}
+
+		bool operator <(const ABSPOSITION& b)
+		{
+			if (beats < b.beats)
+				return true;
+			if (beats == b.beats && f < b.f)
+				return true;
+			return false;
+		}
+		bool operator >(const ABSPOSITION& b)
+		{
+			if (beats > b.beats)
+				return true;
+			if (beats == b.beats && f > b.f)
+				return true;
+			return false;
+		}
+
+		bool operator <=(const ABSPOSITION& b)
+		{
+			if (beats < b.beats)
+				return true;
+			if (beats == b.beats && f <= b.f)
+				return true;
+			return false;
+		}
+		bool operator >=(const ABSPOSITION& b)
+		{
+			if (beats > b.beats)
+				return true;
+			if (beats == b.beats && f >= b.f)
+				return true;
+			return false;
 		}
 	};
 
@@ -2220,19 +2262,14 @@ namespace PR
 				}
 				else
 				{
-/*					// Change Position
-					auto oldp = NoteResizing->p;
-					auto endp = AbsF(oldp).ToFraction() + NoteResizing->d;
-					auto newd = endp - AbsF(hp);
-					if (newd.n == 0)
+					// Change Position
+					auto maxp = AbsF(NoteResizing->EndX());
+					auto newp = AbsF(hp);
+					if (newp >= maxp)
 						return;
-					FRACTION mx;
-					mx = (AbsF(NoteResizingSt.p) + NoteResizingSt.d);
-					if (AbsF(hp) > mx)
-						return;
-					//DebugBreak();
 					NOTE nn = *NoteResizing;
-					nn.d = newd.simplify();
+					nn.d = maxp.ToFraction() - newp.ToFraction();
+					nn.d.d *= DENOM;
 					nn.p = hp;
 					for (auto c : cb)
 					{
@@ -2240,9 +2277,8 @@ namespace PR
 							return;
 					}
 					NoteResizing->p = hp;
-					NoteResizing->d = newd.simplify();
+					NoteResizing->d = nn.d.simplify();
 					Redraw();
-*/
 				}
 
 
