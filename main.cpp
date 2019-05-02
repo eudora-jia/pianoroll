@@ -190,7 +190,7 @@ LRESULT CALLBACK Main_DP(HWND hh, UINT mm, WPARAM ww, LPARAM ll)
 
 
 			vector<unsigned char> mmf;
-			prx.ToMidi(mmf,120);
+			prx.ToMidi(mmf);
 			HANDLE hF = CreateFile(fnx.data(), GENERIC_WRITE, 0, 0, CREATE_ALWAYS, 0, 0);
 			if (hF != INVALID_HANDLE_VALUE)
 			{

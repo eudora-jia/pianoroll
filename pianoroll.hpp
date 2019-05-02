@@ -787,6 +787,33 @@ namespace PR
 			float nh = 20.0;
 		};
 
+		class TEMPO
+		{
+		public:
+			size_t atm = 0; // at measure
+			int BpM = 120;
+
+			bool operator ==(const TEMPO& kk) const
+			{
+				if (BpM == kk.BpM)
+					return true;
+				return false;
+			}
+			bool operator<(const TEMPO& kk)
+			{
+				if (atm < kk.atm)
+					return true;
+				return false;
+			}
+			wchar_t t[50] = { 0 };
+			wchar_t* Txt()
+			{
+				swprintf_s(t, 50, L"%i BpM", BpM);
+				return t;
+			}
+
+		};
+
 		class KEY
 		{
 		public:
@@ -810,7 +837,7 @@ namespace PR
 			}
 			bool operator<(const KEY& kk)
 			{
-				if (m < kk.m)
+				if (atm < kk.atm)
 					return true;
 				return false;
 			}
@@ -985,6 +1012,7 @@ namespace PR
 		vector<HEIGHT> Heights = { HEIGHT() };
 		vector<TIME> Times = { TIME() };
 		vector<KEY> Keys = { KEY() };
+		vector<TEMPO> Tempos = { TEMPO() };
 		HCURSOR CursorArrow = 0, CursorResize = 0;
 		unsigned int snapres = 1;
 		signed int noteres = -1; // bars 
@@ -1048,6 +1076,7 @@ namespace PR
 		{
 			hParent = hp;
 			Keys.resize(1);
+			Tempos.resize(1);
 			Keys[0].CreateScale();
 			CursorResize = LoadCursor(0, IDC_SIZEWE);
 			CursorArrow = LoadCursor(0, IDC_HAND);
@@ -1093,17 +1122,39 @@ namespace PR
 			std::sort(notes.begin(), notes.end());
 		}
 
-		void ToMidi(vector<unsigned char>& v,int tempo = 120)
+		void ToMidi(vector<unsigned char>& v)
 		{
 			MIDI m;
 			map<int, vector<MIDI::MIDIITEM>> s;
 
 			int TPB = 960;
-			MIDI::MIDIITEM Tempo;
-			Tempo.Tempo(tempo);
-			s[0].push_back(Tempo);
 
-	
+			
+			// Keys
+			for (auto& k : Keys)
+			{
+				MIDI::MIDIITEM it1;
+				it1.Key(k.k, k.m);
+				POSITION ps;
+				ps.m = k.atm;
+				auto ti = AbsF(ps);
+				it1.ti.abs = ti.n * TPB;
+				s[0].push_back(it1);
+			}
+
+			// Tempos
+			for (auto& k : Tempos)
+			{
+				MIDI::MIDIITEM it1;
+				it1.Tempo(k.BpM);
+				POSITION ps;
+				ps.m = k.atm;
+				auto ti = AbsF(ps);
+				it1.ti.abs = ti.n * TPB;
+				s[0].push_back(it1);
+			}
+
+
 			// Notes
 			for (auto& n : notes)
 			{
@@ -1213,6 +1264,7 @@ namespace PR
 			auto nb = AbsMeasure(p.m);
 			FRACTION f(nb, DENOM);
 			f += p.f;
+			FRACTION::Om(f, FRACTION(5, 4));
 			return f;
 		}
 
@@ -1328,6 +1380,18 @@ namespace PR
 			}
 			return tt;
 		}
+
+		TEMPO TempoAtMeasure(size_t im)
+		{
+			TEMPO tt;
+			for (auto& k : Tempos)
+			{
+				if (k.atm <= im)
+					tt = k;
+			}
+			return tt;
+		}
+
 
 		D2D1_RECT_F NotePos(int n)
 		{
@@ -2277,6 +2341,7 @@ namespace PR
 			{
 				// Not Selected menu
 				KEY k = KeyAtMeasure(hp.m);
+				TEMPO tx = TempoAtMeasure(hp.m);
 				auto m = CreatePopupMenu();
 				wchar_t re[1000] = { 0 };
 
@@ -2288,14 +2353,26 @@ namespace PR
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 
 
-				auto m1 = CreatePopupMenu();
-				swprintf_s(re, L"Set (Current: %i)\t", k.k);
-				AppendMenu(m1, MF_STRING, 1, re);
-				AppendMenu(m1, MF_STRING, 2, L"Mode Major");
-				AppendMenu(m1, MF_STRING, 3, L"Mode Minor");
-				AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
-				AppendMenu(m, MF_SEPARATOR, 0, L"");
+				if (true)
+				{
+					auto m1 = CreatePopupMenu();
+					swprintf_s(re, L"Set (Current: %i)\t", k.k);
+					AppendMenu(m1, MF_STRING, 1, re);
+					AppendMenu(m1, MF_STRING, 2, L"Mode Major");
+					AppendMenu(m1, MF_STRING, 3, L"Mode Minor");
+					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Key");
+					AppendMenu(m, MF_SEPARATOR, 0, L"");
+				}
 
+				if (true)
+				{
+					auto m1 = CreatePopupMenu();
+					swprintf_s(re, L"Set (Current: %i)\t", tx.BpM);
+					AppendMenu(m1, MF_STRING, 54, re);
+					AppendMenu(m, MF_POPUP | MF_STRING, (UINT_PTR)m1, L"Tempo");
+					AppendMenu(m, MF_SEPARATOR, 0, L"");
+
+				}
 				if (true) 
 				{
 					auto mx = CreatePopupMenu();
@@ -2382,6 +2459,20 @@ namespace PR
 					k2.atm = hp.m;
 					Keys.push_back(k2);
 					sort(Keys.begin(), Keys.end());
+					Redraw();
+				}
+				if (tcmd == 54)
+				{
+					swprintf_s(re, L"%i", tx.BpM);
+					if (!AskText(hParent, L"Tempo", L"Enter tempo:", re))
+						return;
+					TEMPO k2 = tx;
+					k2.BpM = _wtoi(re);
+					if (k2.BpM < 0)
+						k2.BpM = 120;
+					k2.atm = hp.m;
+					Tempos.push_back(k2);
+					sort(Tempos.begin(), Tempos.end());
 					Redraw();
 				}
 				if (tcmd == 2 || tcmd == 3)
@@ -2949,7 +3040,8 @@ namespace PR
 			f4.bottom = info.full.bottom - 2;
 			wchar_t* tls[] = {L"Auto",L"Eraser",L"Single entry"};
 			KEY k0 = KeyAtMeasure(DrawnMeasures[0].im);
-			swprintf_s(ly, 200, L"%s L %u R%s%i %s", tls[Tool],NextLayer + 1, noteres > 0 ? L" 1/" : L" ", noteres > 0 ? noteres : -noteres,k0.Txt());
+			TEMPO t0 = TempoAtMeasure(DrawnMeasures[0].im);
+			swprintf_s(ly, 200, L"%s L %u R%s%i %s %s", tls[Tool],NextLayer + 1, noteres > 0 ? L" 1/" : L" ", noteres > 0 ? noteres : -noteres,k0.Txt(),t0.Txt());
 			Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 			Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 			p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
@@ -2964,6 +3056,18 @@ namespace PR
 				else
 					swprintf_s(ly, 200, L"%llu %s", (unsigned long long)d.im + 1,k1.Txt());
 				k0 = k1;
+
+				TEMPO t1 = TempoAtMeasure(d.im);
+				if (t1 == t0)
+				{
+
+				}
+				else
+				{
+					swprintf_s(ly + wcslen(ly), 100 - wcslen(ly), L" %s", t1.Txt());
+					t0 = t1;
+				}
+
 				D2D1_RECT_F f5 = f4;
 				f5.left = d.full.left;
 				p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f5, BlackBrush);

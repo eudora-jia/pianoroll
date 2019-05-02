@@ -21,6 +21,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Tools - Auto, Eraser, Single click entry
 * Serialization/Deserialization to XML
 * Key per measure
+* Tempo per measure
 * Time signature per measure
 * MIDI export (working, not 100% completed yet)
 * Non-note MIDI notes
