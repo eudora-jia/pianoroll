@@ -478,11 +478,17 @@ namespace PR
 		}
 		bool operator >(FRACTION & f)
 		{
-			return !operator<(f);
+			Om(*this, f);
+			if (n > f.n)
+				return true;
+			return false;
 		}
 		bool operator >=(FRACTION & f)
 		{
-			return !operator<=(f);
+			Om(*this, f);
+			if (n >= f.n)
+				return true;
+			return false;
 		}
 	};
 
@@ -512,10 +518,44 @@ namespace PR
 	}
 	bool operator >(const FRACTION & a, const FRACTION & b)
 	{
-		return !operator <(a, b);
+		FRACTION::Om(a, b);
+		if (a.n > b.n)
+			return true;
+		return false;
 	}
 
 
+	class ABSPOSITION
+	{
+	public:
+		size_t beats;
+		FRACTION f;
+
+		FRACTION ToFraction()
+		{
+			FRACTION fx(beats, 1);
+			fx += f;
+			return fx;
+		}
+		size_t ToTpb(int TPB)
+		{
+			size_t y = TPB * beats;
+			y += (TPB * f.n) / f.d;
+			return y;
+		}
+
+		bool operator !=(const ABSPOSITION& b)
+		{
+			return !operator==(b);
+		}
+
+		bool operator ==(const ABSPOSITION& b)
+		{
+			if (beats == b.beats && f == b.f)
+				return true;
+				return false;
+		}
+	};
 
 	class POSITION
 	{
@@ -561,7 +601,13 @@ namespace PR
 		}
 		bool operator >(const POSITION & p)
 		{
-			return !operator <(p);
+			if (m > p.m)
+				return true;
+			if (m < p.m)
+				return false;
+			if (f > p.f)
+				return true;
+			return false;
 		}
 	};
 
@@ -1138,7 +1184,7 @@ namespace PR
 				POSITION ps;
 				ps.m = k.atm;
 				auto ti = AbsF(ps);
-				it1.ti.abs = ti.n * TPB;
+				it1.ti.abs = ti.ToTpb(TPB);
 				s[0].push_back(it1);
 			}
 
@@ -1150,7 +1196,7 @@ namespace PR
 				POSITION ps;
 				ps.m = k.atm;
 				auto ti = AbsF(ps);
-				it1.ti.abs = ti.n * TPB;
+				it1.ti.abs = ti.ToTpb(TPB);
 				s[0].push_back(it1);
 			}
 
@@ -1167,7 +1213,7 @@ namespace PR
 
 					// Find absolute time 
 					auto ti = AbsF(n.p);
-					it1.ti.abs = ti.n * TPB;
+					it1.ti.abs = ti.ToTpb(TPB);
 
 					s[n.layer].push_back(it1);
 					continue;
@@ -1183,14 +1229,15 @@ namespace PR
 
 				// Find absolute time 
 				auto ti = AbsF(n.p);
-				it1.ti.abs = ti.n * TPB;
+				it1.ti.abs = ti.ToTpb(TPB);
 
 				s[n.layer].push_back(it1);
 
 				MIDI::MIDIITEM it2; 
 				it2.event = it1.event;
 				it2.event &= 0xFFFF;
-				it2.ti.abs = it1.ti.abs + n.d.n*TPB;
+				auto ti2 = AbsF(n.EndX());
+				it2.ti.abs = ti2.ToTpb(TPB);
 				s[n.layer].push_back(it2);
 			}
 			for (auto& ss : s)
@@ -1207,7 +1254,7 @@ namespace PR
 			{
 				TrackData.push_back(ss.second);
 			}
-			m.Write(0, TPB, TrackData, v);
+			m.Write(1, TPB, TrackData, v);
 		}
 
 		void SetWindow(HWND hp)
@@ -1259,13 +1306,23 @@ namespace PR
 			return nb;
 		}
 
-		FRACTION AbsF(POSITION& p)
+
+
+		ABSPOSITION AbsF(POSITION& p)
 		{
-			auto nb = AbsMeasure(p.m);
-			FRACTION f(nb, DENOM);
-			f += p.f;
-			FRACTION::Om(f, FRACTION(5, 4));
-			return f;
+			ABSPOSITION x;
+			x.beats = AbsMeasure(p.m);
+			FRACTION f = p.f;
+			f.simplify();
+			FRACTION f1(1, DENOM);
+			while (f >= f1)
+			{
+				f -= f1;
+				x.beats++;
+			}
+			x.f = f;
+			x.f.simplify();
+			return x;
 		}
 
 		POSITION MeasureAndBarHitTest(float width, bool Precise = false)
@@ -1340,22 +1397,6 @@ namespace PR
 				return Heights[0].nh * HeightScale;
 
 			return 0.0f; //*
-		}
-
-		void ConvertPositionToNewMeasure(POSITION & p)
-		{
-			auto f1 = AbsF(p);
-			size_t im = 0;
-			for (; ; im++)
-			{
-				auto ti = TimeAtMeasure(im);
-				FRACTION bt(ti.nb, DENOM);
-				if (f1 < bt)
-					break;
-				f1 -= bt;
-			}
-			p.m = im;
-			p.f = f1;
 		}
 
 
@@ -2164,7 +2205,8 @@ namespace PR
 #ifdef _DEBUG
 					//				wchar_t a[100];	a1.simplify();	a2.simplify();	swprintf_s(a, 100, L"%u/%u %u/%u \r\n", a1.n, a1.d, a2.n, a2.d);	OutputDebugString(a);
 #endif
-					nn.d = a1 - a2;
+					nn.d = a1.ToFraction() - a2.ToFraction();
+					nn.d.d *= DENOM; // Because a2/a1 return fraction in beats
 					if (nn.d.n <= 0)
 						return;
 					for (auto c : cb)
@@ -2178,9 +2220,9 @@ namespace PR
 				}
 				else
 				{
-					// Change Position
+/*					// Change Position
 					auto oldp = NoteResizing->p;
-					auto endp = AbsF(oldp) + NoteResizing->d;
+					auto endp = AbsF(oldp).ToFraction() + NoteResizing->d;
 					auto newd = endp - AbsF(hp);
 					if (newd.n == 0)
 						return;
@@ -2200,6 +2242,7 @@ namespace PR
 					NoteResizing->p = hp;
 					NoteResizing->d = newd.simplify();
 					Redraw();
+*/
 				}
 
 
