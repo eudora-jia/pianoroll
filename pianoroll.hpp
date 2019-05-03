@@ -35,6 +35,209 @@ namespace PR
 {
 	using namespace std;
 
+
+	inline const wchar_t* gmpa[128] = {
+		// 1- 16
+		L"Acoustic Grand Piano",
+		L"Bright Acoustic",
+		L"Electric Grand",
+		L"Honky-Tonk",
+		L"Electric Piano 1",
+		L"Electric Piano 2",
+		L"Harpsichord",
+		L"Clavinet",
+		L"Celesta",
+		L"Glockenspiel",
+		L"Music Box",
+		L"Vibraphone",
+		L"Marimba",
+		L"Xylophone",
+		L"Tubular Bells",
+		L"Dulcimer",
+
+		//17-32
+		L"Drawbar Organ",
+		L"Percussive Organ",
+		L"Rock Organ",
+		L"Church Organ",
+		L"Reed Organ",
+		L"Accoridan",
+		L"Harmonica",
+		L"Tango Accordian",
+		L"Nylon String Guitar",
+		L"Steel String Guitar",
+		L"Electric Jazz Guitar",
+		L"Electric Clean Guitar",
+		L"Electric Muted Guitar",
+		L"Overdriven Guitar",
+		L"Distortion Guitar",
+		L"Guitar Harmonics",
+
+		// 33-48
+		L"Acoustic Bass",
+		L"Electric Bass(finger)",
+		L"Electric Bass(pick)",
+		L"Fretless Bass",
+		L"Slap Bass 1",
+		L"Slap Bass 2",
+		L"Synth Bass 1",
+		L"Synth Bass 2",
+		L"Violin",
+		L"Viola",
+		L"Cello",
+		L"Contrabass",
+		L"Tremolo Strings",
+		L"Pizzicato Strings",
+		L"Orchestral Strings",
+		L"Timpani",
+
+		// 49-64
+		L"String Ensemble 1",
+		L"String Ensemble 2",
+		L"SynthStrings 1",
+		L"SynthStrings 2",
+		L"Choir Aahs",
+		L"Voice Oohs",
+		L"Synth Voice",
+		L"Orchestra Hit",
+		L"Trumpet",
+		L"Trombone",
+		L"Tuba",
+		L"Muted Trumpet",
+		L"French Horn",
+		L"Brass Section",
+		L"SynthBrass 1",
+		L"SynthBrass 2",
+
+		// 65-80
+		L"Soprano Sax",
+		L"Alto Sax",
+		L"Tenor Sax",
+		L"Baritone Sax",
+		L"Oboe",
+		L"English Horn",
+		L"Bassoon",
+		L"Clarinet",
+		L"Piccolo",
+		L"Flute",
+		L"Recorder",
+		L"Pan Flute",
+		L"Blown Bottle",
+		L"Skakuhachi",
+		L"Whistle",
+		L"Ocarina",
+
+		// 81-96
+		L"Lead 1 (square)",
+		L"Lead 2 (sawtooth)",
+		L"Lead 3 (calliope)",
+		L"Lead 4 (chiff)",
+		L"Lead 5 (charang)",
+		L"Lead 6 (voice)",
+		L"Lead 7 (fifths)",
+		L"Lead 8 (bass+lead)",
+		L"Pad 1 (new age)",
+		L"Pad 2 (warm)",
+		L"Pad 3 (polysynth)",
+		L"Pad 4 (choir)",
+		L"Pad 5 (bowed)",
+		L"Pad 6 (metallic)",
+		L"Pad 7 (halo)",
+		L"Pad 8 (sweep)",
+
+
+		// 97-112
+		L"FX 1 (rain)",
+		L"FX 2 (soundtrack)",
+		L"FX 3 (crystal)",
+		L"FX 4 (atmosphere)",
+		L"FX 5 (brightness)",
+		L"FX 6 (goblins)",
+		L"FX 7 (echoes)",
+		L"FX 8 (sci-fi)",
+		L"Sitar",
+		L"Banjo",
+		L"Shamisen",
+		L"Koto",
+		L"Kalimba",
+		L"Bagpipe",
+		L"Fiddle",
+		L"Shanai",
+
+
+		// 113-128
+		L"Tinkle Bell",
+		L"Agogo",
+		L"Steel Drums",
+		L"Woodblock",
+		L"Taiko Drum",
+		L"Melodic Tom",
+		L"Synth Drum",
+		L"Reverse Cymbal",
+		L"Guitar",
+		L"Breath Noise",
+		L"Seashore",
+		L"Bird Tweet",
+		L"Telephone Ring",
+		L"Helicopter",
+		L"Applause",
+		L"Gunshot"
+	};
+
+
+	inline const wchar_t* gmdr[] = {
+
+		// GM dr , 35-81
+		L"Bass Drum 2"
+		,L"Bass Drum 1"
+		,L"Side Stick"
+		,L"Snare Drum 1"
+		,L"Hand Clap"
+		,L"Snare Drum 2"
+		,L"Low Tom 2"
+		,L"Closed Hi-hat"
+		,L"Low Tom 1"
+		,L"Pedal Hi-hat"
+		,L"Mid Tom 2"
+		,L"Open Hi-hat"
+		,L"Mid Tom 1"
+		,L"High Tom 2"
+		,L"Crash Cymbal 1"
+		,L"High Tom 1"
+		,L"Ride Cymbal 1"
+		,L"Chinese Cymbal"
+		,L"Ride Bell"
+		,L"Tambourine"
+		,L"Splash Cymbal"
+		,L"Cowbell"
+		,L"Crash Cymbal 2"
+		,L"Vibra Slap"
+		,L"Ride Cymbal 2"
+		,L"High Bongo"
+		,L"Low Bongo"
+		,L"Mute High Conga"
+		,L"Open High Conga"
+		,L"Low Conga"
+		,L"High Timbale"
+		,L"Low Timbale"
+		,L"High Agogo"
+		,L"Low Agogo"
+		,L"Cabasa"
+		,L"Maracas"
+		,L"Short Whistle"
+		,L"Long Whistle"
+		,L"Short Guiro"
+		,L"Long Guiro"
+		,L"Claves"
+		,L"High Wood Block"
+		,L"Low Wood Block"
+		,L"Mute Cuica"
+		,L"Open Cuica"
+		,L"Mute Triangle"
+		,L"Open Triangle"
+	};
+
+
 	class MIDI
 	{
 	public:
@@ -539,12 +742,6 @@ namespace PR
 		size_t beats;
 		FRACTION f;
 
-		FRACTION ToFraction()
-		{
-			FRACTION fx(beats, 1);
-			fx += f;
-			return fx;
-		}
 		size_t ToTpb(int TPB)
 		{
 			size_t y = TPB * beats;
@@ -598,6 +795,7 @@ namespace PR
 			return false;
 		}
 	};
+
 
 	class POSITION
 	{
@@ -1278,7 +1476,8 @@ namespace PR
 				MIDI::MIDIITEM it2; 
 				it2.event = it1.event;
 				it2.event &= 0xFFFF;
-				auto ti2 = AbsF(n.EndX());
+				auto nend = n.EndX();
+				auto ti2 = AbsF(nend);
 				it2.ti.abs = ti2.ToTpb(TPB);
 				s[n.layer].push_back(it2);
 			}
@@ -1348,6 +1547,15 @@ namespace PR
 			return nb;
 		}
 
+		FRACTION DistanceBetweenAbs(ABSPOSITION& a1, ABSPOSITION& a2)
+		{
+			ssize_t b1 = a1.beats;
+			ssize_t b2 = a2.beats;
+			ssize_t b3 = b1 - b2;
+			FRACTION f(b3,DENOM);
+			f += (a1.f - a2.f);
+			return f;
+		}
 
 
 		ABSPOSITION AbsF(POSITION& p)
@@ -2243,12 +2451,12 @@ namespace PR
 					NOTE nn = *NoteResizing;
 					auto a1 = AbsF(hp);
 					auto a2 = AbsF(NoteResizing->p);
-
+					nn.d = DistanceBetweenAbs(a1, a2);
 #ifdef _DEBUG
-					//				wchar_t a[100];	a1.simplify();	a2.simplify();	swprintf_s(a, 100, L"%u/%u %u/%u \r\n", a1.n, a1.d, a2.n, a2.d);	OutputDebugString(a);
+//					auto nd = a1.ToFraction() - a2.ToFraction();
+//					nd.d *= DENOM;
+//					wchar_t a[100];		swprintf_s(a, 100, L"New %u + %u/%u (dur %u/%u), Old %u + %u/%u (dur %u/%u) \r\n",a1.beats, a1.f.n, a1.f.d, nd.n,nd.d,a2.beats,a2.f.n, a2.f.d,NoteResizing->d.n, NoteResizing->d.d);	OutputDebugString(a);
 #endif
-					nn.d = a1.ToFraction() - a2.ToFraction();
-					nn.d.d *= DENOM; // Because a2/a1 return fraction in beats
 					if (nn.d.n <= 0)
 						return;
 					for (auto c : cb)
@@ -2263,13 +2471,13 @@ namespace PR
 				else
 				{
 					// Change Position
-					auto maxp = AbsF(NoteResizing->EndX());
+					auto nend = NoteResizing->EndX();
+					auto maxp = AbsF(nend);
 					auto newp = AbsF(hp);
 					if (newp >= maxp)
 						return;
 					NOTE nn = *NoteResizing;
-					nn.d = maxp.ToFraction() - newp.ToFraction();
-					nn.d.d *= DENOM;
+					nn.d = DistanceBetweenAbs(maxp,newp);
 					nn.p = hp;
 					for (auto c : cb)
 					{
@@ -2724,16 +2932,16 @@ namespace PR
 				{
 					auto& n = notes[i];
 					if (n.layer != NextLayer)
-						continue;
-					if (i == ni)
-						continue;
-					if (n.Selected)
-					{
-						Need = true;
-						n.Selected = false;
-						for (auto c : cb)
-							c->OnNoteSelect(this, &n, 0);
-					}
+continue;
+if (i == ni)
+continue;
+if (n.Selected)
+{
+	Need = true;
+	n.Selected = false;
+	for (auto c : cb)
+		c->OnNoteSelect(this, &n, 0);
+}
 				}
 			}
 			if (ni != -1)
@@ -2758,9 +2966,9 @@ namespace PR
 			if (Tool == 1)
 				return;
 
-//			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+			//			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
 			bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
-//			bool Alt = ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
+			//			bool Alt = ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
 			bool U = false;
 			// Find note there
@@ -2798,9 +3006,45 @@ namespace PR
 				if (Control)
 				{
 					vector<wchar_t> re(1000);
-					swprintf_s(re.data(), 1000,L"0x000000");
-					if (!AskText(hParent, L"Hex Code", L"Enter hex code for event:", re.data()))
-						return;
+
+					HMENU m = CreatePopupMenu();
+					if (true) // 16*128 items of patching
+					{
+						int yd = 1;
+						// Channels and patches
+						auto m1 = CreatePopupMenu();
+						for (int i = 0; i < 15; i++)
+						{
+							auto m2 = CreatePopupMenu();
+							for (int y = 0; y < 128; y++)
+							{
+								swprintf_s(re.data(), 1000, L"%u.%s", y,gmpa[y]);
+								AppendMenu(m2, MF_STRING | ((y % 32) == 0 && y > 0 ? MF_MENUBARBREAK : 0), yd++, re.data());
+							}
+							swprintf_s(re.data(), 1000, L"Channel %u", i + 1);
+							AppendMenu(m1, MF_STRING | MF_POPUP, (UINT_PTR)m2, re.data());
+						}
+						AppendMenu(m, MF_STRING | MF_POPUP, (UINT_PTR)m1, L"Channel Program");
+					}
+					AppendMenu(m, MF_STRING | MF_POPUP, 3001, L"Raw Hex code...");
+					POINT p;
+					GetCursorPos(&p);
+					int tcmd = TrackPopupMenu(m, TPM_CENTERALIGN | TPM_RETURNCMD, p.x, p.y, 0, hParent, 0);
+					DestroyMenu(m);
+					if (tcmd <= 2048)
+					{
+						tcmd--;
+						int ch = tcmd / 128;
+						int yp = tcmd % 128;
+						swprintf_s(re.data(), 1000, L"0x00%02XC%X",yp,ch);
+					}
+					else
+					if (tcmd == 3001)
+					{
+						swprintf_s(re.data(), 1000, L"0x000000");
+						if (!AskText(hParent, L"Hex Code", L"Enter hex code for event:", re.data()))
+							return;
+					}
 
 					std::wstringstream ss;
 					ss << std::hex << re.data();
@@ -2902,9 +3146,9 @@ namespace PR
 				side.full.bottom = (FLOAT)rc.bottom;
 				side.full.right = (FLOAT)rc.right;
 			}
-
-			if (Direction == 1)
-				return; // Not yet done
+			
+//			if (Direction == 1)
+			//	return; // Not yet done
 
 			p->FillRectangle(side.full, SideBrush);
 
@@ -2978,19 +3222,30 @@ namespace PR
 					{
 						FirstEntry = false;
 						if (Direction == 1)
-							d2.top = d2.bottom + WhiteSize;
+						{
+							d2.bottom = d2.top + WhiteSize;
+							LeftWas = d2.bottom;
+						}
 						else
+						{
 							d2.top = d2.bottom - WhiteSize;
-						LeftWas = d2.top;
+							LeftWas = d2.top;
+						}
 					}
 					else
 					{
-						d2.bottom = LeftWas;
 						if (Direction == 1)
-							d2.top = d2.bottom + WhiteSize;
+						{
+							d2.top = LeftWas;
+							d2.bottom = d2.top + WhiteSize;
+							LeftWas = d2.bottom;
+						}
 						else
+						{
+							d2.bottom = LeftWas;
 							d2.top = d2.bottom - WhiteSize;
-						LeftWas = d2.top;
+							LeftWas = d2.top;
+						}
 					}
 
 					d2.top += 1;
@@ -3008,6 +3263,7 @@ namespace PR
 
 			}
 
+			// Blacks
 			for (auto& a : DrawedNotes)
 			{
 				int m = a.n % 12;
