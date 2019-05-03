@@ -253,7 +253,7 @@ namespace PR
 			MIDITIME ti;
 			DWORD event = 0;
 			char ff = 0;
-			vector<char> data; // For FF
+			vector<unsigned char> data; // For FF
 
 			void Tempo(int n)
 			{
@@ -653,40 +653,40 @@ namespace PR
 			return *this;
 		}
 
-		bool operator ==(const FRACTION & f)
+		bool operator ==(const FRACTION & f)  const
 		{
 			Om(*this, f);
 			if (n == f.n)
 				return true;
 			return false;
 		}
-		bool operator !=(const FRACTION & f)
+		bool operator !=(const FRACTION & f)  const
 		{
 			return !operator==(f);
 		}
 
-		bool operator <(FRACTION & f)
+		bool operator <(FRACTION & f)  const
 		{
 			Om(*this, f);
 			if (n < f.n)
 				return true;
 			return false;
 		}
-		bool operator <=(FRACTION & f)
+		bool operator <=(FRACTION & f)  const
 		{
 			Om(*this, f);
 			if (n <= f.n)
 				return true;
 			return false;
 		}
-		bool operator >(FRACTION & f)
+		bool operator >(FRACTION & f)  const
 		{
 			Om(*this, f);
 			if (n > f.n)
 				return true;
 			return false;
 		}
-		bool operator >=(FRACTION & f)
+		bool operator >=(FRACTION & f)  const
 		{
 			Om(*this, f);
 			if (n >= f.n)
@@ -815,7 +815,7 @@ namespace PR
 			f.Unser(e);
 		}
 
-		bool operator <(const POSITION& p)
+		bool operator <(const POSITION& p) const
 		{
 			if (m < p.m)
 				return true;
@@ -826,7 +826,7 @@ namespace PR
 			return false;
 		}
 
-		bool operator ==(const POSITION& p)
+		bool operator ==(const POSITION& p)  const
 		{
 			if (m != p.m)
 				return false;
@@ -835,11 +835,11 @@ namespace PR
 			return true;
 		}
 
-		bool operator !=(const POSITION & p)
+		bool operator !=(const POSITION & p)  const
 		{
 			return !operator ==(p);
 		}
-		bool operator >(const POSITION & p)
+		bool operator >(const POSITION & p)  const
 		{
 			if (m > p.m)
 				return true;
@@ -849,6 +849,28 @@ namespace PR
 				return true;
 			return false;
 		}
+	};
+
+	class MARKER
+	{
+	public:
+
+		POSITION p;
+		wstring t;
+
+		bool operator ==(const MARKER& kk) const
+		{
+			if (p == kk.p)
+				return true;
+			return false;
+		}
+		bool operator<(const MARKER & kk)
+		{
+			if (p < kk.p)
+				return true;
+			return false;
+		}
+
 	};
 
 
@@ -1100,6 +1122,7 @@ namespace PR
 
 		};
 
+
 		class KEY
 		{
 		public:
@@ -1298,6 +1321,7 @@ namespace PR
 		vector<HEIGHT> Heights = { HEIGHT() };
 		vector<TIME> Times = { TIME() };
 		vector<KEY> Keys = { KEY() };
+		vector<MARKER> Markers;
 		vector<TEMPO> Tempos = { TEMPO() };
 		HCURSOR CursorArrow = 0, CursorResize = 0;
 		unsigned int snapres = 1;
@@ -1444,6 +1468,18 @@ namespace PR
 			// Notes
 			for (auto& n : notes)
 			{
+				if (n.HasMetaEvent)
+				{
+					MIDI::MIDIITEM it1;
+					it1.event = 0;
+					it1.ff = n.MetaEvent;
+					it1.data = n.MetaEventData;
+					it1.ti.abs = 0;
+					auto ti = AbsF(n.p);
+					it1.ti.abs = ti.ToTpb(TPB);
+					s[n.layer].push_back(it1);
+					continue;
+				}
 				if (n.nonote > 0)
 				{
 					MIDI::MIDIITEM it1;
@@ -1641,7 +1677,7 @@ namespace PR
 			return -1;
 		}
 
-		float HeightAtNote(int n)
+		float HeightAtNote(int)
 		{
 			if (Heights.size() == 1)
 				return Heights[0].nh * HeightScale;
@@ -1772,6 +1808,22 @@ namespace PR
 				Control = true;
 			if (A)
 				Alt = true;
+
+			if (ww == VK_INSERT)
+			{
+				MARKER m;
+				m.p = LastClickN;
+				Markers.push_back(m);
+			}
+
+			if (ww == VK_HOME)
+			{
+				if (Control)
+				{
+					ScrollX = 0;
+					Redraw();
+				}
+			}
 
 			if (ww == VK_UP || ww == VK_DOWN)
 			{
@@ -2370,7 +2422,10 @@ namespace PR
 				// Convert these to Viewing
 				// In TopBar full, FullNotesWidth
 				// In This		,  ?
-				ScrollX += TotalWidthForMusic * pts / (top.full.right - top.full.left);
+				if (pts >= 0)
+					ScrollX += TotalWidthForMusic * pts / (top.full.right - top.full.left);
+				else
+					ScrollX -= TotalWidthForMusic * -pts / (top.full.right - top.full.left);
 				if (ScrollX < 0)
 					ScrollX = 0;
 				LastClick.x = nx;
@@ -2932,16 +2987,16 @@ namespace PR
 				{
 					auto& n = notes[i];
 					if (n.layer != NextLayer)
-continue;
-if (i == ni)
-continue;
-if (n.Selected)
-{
-	Need = true;
-	n.Selected = false;
-	for (auto c : cb)
-		c->OnNoteSelect(this, &n, 0);
-}
+						continue;
+					if (i == ni)
+						continue;
+					if (n.Selected)
+					{
+						Need = true;
+						n.Selected = false;
+						for (auto c : cb)
+							c->OnNoteSelect(this, &n, 0);
+					}
 				}
 			}
 			if (ni != -1)
@@ -3026,6 +3081,13 @@ if (n.Selected)
 						}
 						AppendMenu(m, MF_STRING | MF_POPUP, (UINT_PTR)m1, L"Channel Program");
 					}
+					AppendMenu(m, MF_STRING | MF_POPUP, 4001, L"Text (FF 01)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4002, L"Copyright (FF 02)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4003, L"Track Name (FF 03)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4004, L"Instrument (FF 04)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4005, L"Lyric (FF 05)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4006, L"Marker (FF 06)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 4007, L"Cue point (FF 07)...");
 					AppendMenu(m, MF_STRING | MF_POPUP, 3001, L"Raw Hex code...");
 					POINT p;
 					GetCursorPos(&p);
@@ -3044,11 +3106,22 @@ if (n.Selected)
 						swprintf_s(re.data(), 1000, L"0x000000");
 						if (!AskText(hParent, L"Hex Code", L"Enter hex code for event:", re.data()))
 							return;
+						std::wstringstream ss;
+						ss << std::hex << re.data();
+						ss >> nx.nonote;
+					}
+					else
+					if (tcmd >= 4001 && tcmd <= 4007)
+					{
+						swprintf_s(re.data(), 1000, L"");
+						if (!AskText(hParent, L"Text", L"Enter text:", re.data()))
+							return;
+						nx.HasMetaEvent = true;
+						nx.MetaEvent = (unsigned char)(tcmd - 4000);
+						nx.MetaEventData.resize(wcslen(re.data()) * 2);
+						memcpy(nx.MetaEventData.data(), re.data(), wcslen(re.data()) * 2);
 					}
 
-					std::wstringstream ss;
-					ss << std::hex << re.data();
-					ss >> nx.nonote;
 				}
 				nx.midi = e2;
 				nx.p.m = e1.m;
@@ -3623,6 +3696,22 @@ if (n.Selected)
 					p->FillRoundedRectangle(fr, NoteBrush1);
 				n.dr = f;
 
+				if (n.HasMetaEvent)
+				{
+					auto f4 = f;
+					f4.left += 2;
+					f4.right -= 2;
+					f4.top += 10;
+					f4.bottom = f.bottom - 10;
+
+					wchar_t ly[100] = { 0 };
+					swprintf_s(ly, 100, L"FF %02u %u", n.MetaEvent,n.MetaEventData.size());
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+
+				}
+
 				if (n.nonote > 0)
 				{
 					auto f4 = f;
@@ -3640,7 +3729,7 @@ if (n.Selected)
 				}
 
 				// Velocity
-				if (ViewVelocity && n.nonote == 0)
+				if (ViewVelocity && n.nonote == 0 && !n.HasMetaEvent)
 				{
 					auto f2 = f;
 					f2.left += 10;
@@ -3657,7 +3746,7 @@ if (n.Selected)
 				}
 
 				// Channel
-				if (ViewChannels && n.nonote == 0)
+				if (ViewChannels && n.nonote == 0 && !n.HasMetaEvent)
 				{
 					auto f3 = f;
 					f3.left += 10;
@@ -3687,7 +3776,7 @@ if (n.Selected)
 					f4.bottom = f.bottom - 10;
 
 					wchar_t ly[100] = { 0 };
-					if (n.nonote == 0)
+					if (n.nonote == 0 && !n.HasMetaEvent)
 					{
 						KEY k = KeyAtMeasure(n.p.m);
 						MidiNoteName(ly, n.midi, k.k, k.m);

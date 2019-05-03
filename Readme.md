@@ -25,6 +25,7 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Time signature per measure
 * MIDI export (working, not 100% completed yet)
 * Non-note MIDI notes
+* Meta events (Raw hex and specific items)
 
 ## Callbacks
 Your callbacks are notified when:
@@ -57,6 +58,7 @@ Your callbacks are notified when:
 * Ctrl+Y : Redo
 * Right/Left arrow : move roll 
 * Del : Delete selected notes
+* Ctrl+Home : Scroll to start
 
 ## Mouse
 * Dblclick : insert note (auto tool) 
