@@ -1817,6 +1817,41 @@ namespace PR
 				Redraw();
 			}
 
+			if (ww == VK_TAB)
+			{
+				if (Shift)
+				{
+					// Select next
+					for (ssize_t i = notes.size() - 1 ; i >= 0 ; i--)
+					{
+						if (!notes[i].Selected)
+							continue;
+						notes[i].Selected = false;
+						if (i > 0)
+							notes[i - 1].Selected = true;
+						else
+							notes[notes.size() - 1].Selected = true;
+						break;
+					}
+				}
+				else
+				{
+					// Select next
+					for (size_t i = 0; i < notes.size(); i++)
+					{
+						if (!notes[i].Selected)
+							continue;
+						notes[i].Selected = false;
+						if (i < (notes.size() - 1))
+							notes[i + 1].Selected = true;
+						else
+							notes[0].Selected = true;
+						break;
+					}
+				}
+				Redraw();
+			}
+
 			if (ww == VK_HOME)
 			{
 				if (Control)
@@ -3142,6 +3177,7 @@ namespace PR
 					AppendMenu(m, MF_STRING | MF_POPUP, 4005, L"Lyric (FF 05)...");
 					AppendMenu(m, MF_STRING | MF_POPUP, 4006, L"Marker (FF 06)...");
 					AppendMenu(m, MF_STRING | MF_POPUP, 4007, L"Cue point (FF 07)...");
+					AppendMenu(m, MF_STRING | MF_POPUP, 3002, L"Aftertouch");
 					AppendMenu(m, MF_STRING | MF_POPUP, 3001, L"Raw Hex code...");
 					POINT p;
 					GetCursorPos(&p);
@@ -3163,6 +3199,13 @@ namespace PR
 						std::wstringstream ss;
 						ss << std::hex << re.data();
 						ss >> nx.nonote;
+					}
+					else
+					if (tcmd == 3002)
+					{
+						nx.nonote = 0x7F00A0;
+						nx.nonote |= NextChannel;
+						nx.nonote |= (e2 << 8);
 					}
 					else
 					if (tcmd >= 4001 && tcmd <= 4007)
