@@ -2206,6 +2206,13 @@ namespace PR
 							nn.vel++;
 						if (!Shift && nn.vel < 123 && ww == 190)
 							nn.vel += 5;
+
+						if (nn.nonote > 0 && ((nn.nonote & 0xA0) == 0xA0))
+						{
+							nn.nonote &= 0xFFFF;
+							nn.nonote |= (nn.vel << 16);
+						}
+
 						for (auto c : cb)
 						{
 							if (FAILED(c->OnNoteChange(this, &n, &nn)))
@@ -3022,7 +3029,7 @@ namespace PR
 			if (Tool == 1)
 				return;
 
-			//			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
+			bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
 			bool Control = ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0);
 			//			bool Alt = ((GetAsyncKeyState(VK_MENU) & 0x8000) != 0);
 
@@ -3059,7 +3066,12 @@ namespace PR
 				// Insert note
 				NOTE nx;
 
-				if (Control)
+				if (Control && Shift)
+				{
+					nx.vel = 127;
+				}
+
+				if (Control && !Shift)
 				{
 					vector<wchar_t> re(1000);
 
@@ -3155,6 +3167,16 @@ namespace PR
 				U = true;
 				nx.ch = NextChannel;
 				nx.layer = NextLayer;
+
+
+				if (Control && Shift)
+				{
+					nx.nonote = 0x0000A0;
+					nx.nonote |= nx.ch;
+					nx.nonote |= (nx.vel << 16);
+					nx.nonote |= (nx.midi << 8);
+				}
+
 				notes.push_back(nx);
 				std::sort(notes.begin(), notes.end());
 				Redraw();
@@ -3732,7 +3754,7 @@ namespace PR
 					f4.left += 2;
 					f4.right -= 2;
 					f4.top += 10;
-					f4.bottom = f.bottom - 10;
+					f4.bottom = f.bottom - 13;
 
 					wchar_t ly[100] = { 0 };
 					swprintf_s(ly, 100, L"FF %02u %u", n.MetaEvent,n.MetaEventData.size());
@@ -3742,24 +3764,47 @@ namespace PR
 
 				}
 
-				if (n.nonote > 0)
+				bool IsAfterTouch = false;
+				if ((n.nonote & 0xA0) == 0xA0)
+					IsAfterTouch = true;
+
+				if (n.nonote > 0 && !IsAfterTouch)
 				{
 					auto f4 = f;
 					f4.left += 2;
 					f4.right -= 2;
 					f4.top += 10;
-					f4.bottom = f.bottom - 10;
+					f4.bottom = f.bottom - 13;
 
 					wchar_t ly[100] = { 0 };
 					swprintf_s(ly, 100, L"0x%06X", n.nonote);
 					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
 					p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+				}
 
+				if (IsAfterTouch)
+				{
+					auto f4 = f;
+					f4.left += 2;
+					f4.right -= 2;
+					f4.top += 10;
+					f4.bottom = f.bottom - 13;
+
+
+					wchar_t ly[100] = { 0 };
+					KEY k = KeyAtMeasure(n.p.m);
+					MidiNoteName(ly, n.midi, k.k, k.m);
+
+					wchar_t ly2[100] = { 0 };
+					swprintf_s(ly2, 100, L"A-%s", ly);
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly2, (UINT32)wcslen(ly2), Text, f4, BlackBrush);
 				}
 
 				// Velocity
-				if (ViewVelocity && n.nonote == 0 && !n.HasMetaEvent)
+				if (ViewVelocity && (IsAfterTouch || (n.nonote == 0 && !n.HasMetaEvent)))
 				{
 					auto f2 = f;
 					f2.left += 10;
@@ -3803,7 +3848,7 @@ namespace PR
 					f4.left += 2;
 					f4.right -= 2;
 					f4.top += 10;
-					f4.bottom = f.bottom - 10;
+					f4.bottom = f.bottom - 13;
 
 					wchar_t ly[100] = { 0 };
 					if (n.nonote == 0 && !n.HasMetaEvent)
