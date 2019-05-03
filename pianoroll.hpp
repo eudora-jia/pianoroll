@@ -2629,6 +2629,7 @@ namespace PR
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 				AppendMenu(m, MF_STRING, 11, L"Velocity Down\t<");
 				AppendMenu(m, MF_STRING, 12, L"Velocity Up\t>");
+				AppendMenu(m, MF_STRING, 21, L"Velocity...");
 				AppendMenu(m, MF_SEPARATOR, 0, L"");
 				AppendMenu(m, MF_STRING, 15, L"Channel Down\tShift+Down");
 				AppendMenu(m, MF_STRING, 16, L"Channel Up\tShift+Up");
@@ -2685,6 +2686,46 @@ namespace PR
 				if (tcmd == 18)
 				{
 					KeyDown(VK_UP, 0, 0,0,true);
+				}
+				if (tcmd == 21)
+				{
+					// Velocity entry
+					vector<wchar_t> re(1000);
+					if (!AskText(hParent, L"Velocity", L"Enter velocity (0-127):", re.data()))
+						return;
+
+					int vel = _wtoi(re.data());
+					if (vel < 0 || vel > 127)
+						vel = 127;
+
+					bool R = false, U = false;
+					for (auto& n : notes)
+					{
+						if (n.layer != NextLayer)
+							continue;
+						if (n.Selected)
+						{
+							NOTE nn = n;
+							nn.vel  = vel;
+							if (nn.nonote > 0 && ((nn.nonote & 0xA0) == 0xA0))
+							{
+								nn.nonote &= 0xFFFF;
+								nn.nonote |= (nn.vel << 16);
+							}
+							for (auto c : cb)
+							{
+								if (FAILED(c->OnNoteChange(this, &n, &nn)))
+									return;
+							}
+							if (!U)
+								PushUndo();
+							U = true;
+							R = true;
+							n.vel = nn.vel;
+						}
+					}
+					if (R)
+						Redraw();
 				}
 			}
 			else
