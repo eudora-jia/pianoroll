@@ -1814,6 +1814,7 @@ namespace PR
 				MARKER m;
 				m.p = LastClickN;
 				Markers.push_back(m);
+				Redraw();
 			}
 
 			if (ww == VK_HOME)
@@ -3332,6 +3333,24 @@ namespace PR
 						p->FillRectangle(d2, LineBrush);
 					else
 						p->FillRectangle(d2, WhiteBrush);
+					if (m == 0)
+					{
+						auto f4 = d2;
+						f4.right -= 5;
+						f4.left += 5;
+						wchar_t ly[100] = { 0 };
+						swprintf_s(ly, 100, L"C%i", (a.n / 12) - 1);
+						if (Direction == 0)
+							Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
+						else
+							Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+						Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+						if (a.n == PianoNoteClicked && PianoClicking)
+							p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, WhiteBrush);
+						else
+							p->DrawTextW(ly, (UINT32)wcslen(ly), Text, f4, BlackBrush);
+					}
+
 				}
 
 			}
@@ -3648,6 +3667,17 @@ namespace PR
 					TotalWidthForMusic += (size_t)(dd.full.right - dd.full.left);
 				if (EndVisible == 0 && WasDrown)
 					DrawnMeasures.push_back(dd);
+			}
+
+			// Markers
+			for (auto& m : Markers)
+			{
+				auto msrbegin = DrawnMeasureByIndex(m.p.m);
+				if (!msrbegin)
+					continue;
+
+
+
 			}
 
 			// Notes
