@@ -1758,6 +1758,26 @@ namespace PR
 			return d;
 		}
 
+		signed int PitchShift(DWORD ev)
+		{
+			ev >>= 8;
+			ev &= 0xFFFF;
+
+			int lsb = ev & 0xFF;
+			int msb = (ev >> 8) & 0xFF;
+
+			int g = lsb + (msb * 128);
+			return g;
+		}
+
+		int PitchShiftR(int b)
+		{
+			int low7 = b & 0x7F;
+			b >>= 7;
+			int high7 = b & 0x7F;
+			return (high7 << 8) | low7;
+		}
+
 		size_t NoteAtPos(int x, int y, bool ResizeEdge = false, bool* Right = 0,bool IgnoreLayer = 0)
 		{
 			/*		bool Shift = ((GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0);
@@ -2229,20 +2249,63 @@ namespace PR
 					if (n.Selected)
 					{
 						NOTE nn = n;
-						if (Control && ww == 188)
-							nn.vel = 0;
-						if (Control && ww == 190)
-							nn.vel = 127;
-						if (!Shift && nn.vel >= 5 && ww == 188)
-							nn.vel -= 5;
-						if (Shift && nn.vel > 0 && ww == 188)
-							nn.vel--;
-						if (Shift && nn.vel < 127 && ww == 190)
-							nn.vel++;
-						if (!Shift && nn.vel < 123 && ww == 190)
-							nn.vel += 5;
+						if ((n.nonote & 0xF0) == 0xE0)
+						{
+							int e = PitchShift(n.nonote);
+							if (!Control && !Shift && !Alt)
+							{
+								if (ww == 190)
+									e += 20;
+								if (ww == 188)
+									e -= 20;
+							}
+							if (!Control && Shift && !Alt)
+							{
+								if (ww == 190)
+									e += 5;
+								if (ww == 188)
+									e -= 5;
+							}
+							if (Control && !Shift && !Alt)
+							{
+								if (ww == 190)
+									e += 50;
+								if (ww == 188)
+									e -= 50;
+							}
+							if (Control && Shift && !Alt)
+							{
+								if (ww == 190)
+									e = 0x4000;
+								if (ww == 188)
+									e = 0;
+							}
+							if (Alt)
+								e = 0x2000;
+							if (e < 0)
+								e = 0;
+							if (e > 0x4000)
+								e = 0x4000;
 
-						if (nn.nonote > 0 && ((nn.nonote & 0xA0) == 0xA0))
+							nn.nonote = (n.nonote & 0xFF) | (PitchShiftR(e) << 8);
+						}
+						else
+						{
+							if (Control && ww == 188)
+								nn.vel = 0;
+							if (Control && ww == 190)
+								nn.vel = 127;
+							if (!Shift && nn.vel >= 5 && ww == 188)
+								nn.vel -= 5;
+							if (Shift && nn.vel > 0 && ww == 188)
+								nn.vel--;
+							if (Shift && nn.vel < 127 && ww == 190)
+								nn.vel++;
+							if (!Shift && nn.vel < 123 && ww == 190)
+								nn.vel += 5;
+						}
+
+						if (nn.nonote > 0 && ((nn.nonote & 0xF0) == 0xA0))
 						{
 							nn.nonote &= 0xFFFF;
 							nn.nonote |= (nn.vel << 16);
@@ -2258,6 +2321,8 @@ namespace PR
 						U = true;
 						R = true;
 						n.vel = nn.vel;
+						if ((n.nonote & 0xF0) == 0xE0)
+							n.nonote = nn.nonote;
 					}
 				}
 				if (R)
@@ -2742,7 +2807,7 @@ namespace PR
 						{
 							NOTE nn = n;
 							nn.vel  = vel;
-							if (nn.nonote > 0 && ((nn.nonote & 0xA0) == 0xA0))
+							if (nn.nonote > 0 && ((nn.nonote & 0xF0) == 0xA0))
 							{
 								nn.nonote &= 0xFFFF;
 								nn.nonote |= (nn.vel << 16);
@@ -3170,6 +3235,17 @@ namespace PR
 						}
 						AppendMenu(m, MF_STRING | MF_POPUP, (UINT_PTR)m1, L"Channel Program");
 					}
+					if (true) // 16 items of pitch shift
+					{
+						// Channels and patches
+						auto m1 = CreatePopupMenu();
+						for (int i = 0; i < 15; i++)
+						{
+							swprintf_s(re.data(), 1000, L"Channel %u", i + 1);
+							AppendMenu(m1, MF_STRING, 2100 + i, re.data());
+						}
+						AppendMenu(m, MF_STRING | MF_POPUP, (UINT_PTR)m1, L"Pitch Shift");
+					}
 					AppendMenu(m, MF_STRING | MF_POPUP, 4001, L"Text (FF 01)...");
 					AppendMenu(m, MF_STRING | MF_POPUP, 4002, L"Copyright (FF 02)...");
 					AppendMenu(m, MF_STRING | MF_POPUP, 4003, L"Track Name (FF 03)...");
@@ -3189,6 +3265,12 @@ namespace PR
 						int ch = tcmd / 128;
 						int yp = tcmd % 128;
 						swprintf_s(re.data(), 1000, L"0x00%02XC%X",yp,ch);
+					}
+					else
+					if (tcmd >= 2100 && tcmd <= 2116)
+					{
+						nx.nonote = 0x4000E0;
+						nx.nonote |= tcmd - 2100;
 					}
 					else
 					if (tcmd == 3001)
@@ -3849,10 +3931,14 @@ namespace PR
 				}
 
 				bool IsAfterTouch = false;
-				if ((n.nonote & 0xA0) == 0xA0)
+				if ((n.nonote & 0xF0) == 0xA0)
 					IsAfterTouch = true;
 
-				if (n.nonote > 0 && !IsAfterTouch)
+				bool IsPS = false;
+				if ((n.nonote & 0xF0) == 0xE0)
+					IsPS = true;
+
+				if (n.nonote > 0 && !IsAfterTouch && !IsPS)
 				{
 					auto f4 = f;
 					f4.left += 2;
@@ -3887,8 +3973,41 @@ namespace PR
 					p->DrawTextW(ly2, (UINT32)wcslen(ly2), Text, f4, BlackBrush);
 				}
 
+				if (IsPS)
+				{
+					auto f4 = f;
+					f4.left += 2;
+					f4.right -= 2;
+					f4.top += 10;
+					f4.bottom = f.bottom - 13;
+
+					wchar_t ly2[100] = { 0 };
+					int e = PitchShift(n.nonote);
+
+					if (e == 0x2000)
+						swprintf_s(ly2, 100, L"PS%u",n.ch);
+					if (e < 0x2000)
+						swprintf_s(ly2, 100, L"PS%u-%u", n.ch,0x2000 - e);
+					if (e > 0x2000)
+						swprintf_s(ly2, 100, L"PS%u+%u", n.ch, e - 0x2000);
+					Text->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+					Text->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+					p->DrawTextW(ly2, (UINT32)wcslen(ly2), Text, f4, BlackBrush);
+				}
+
+				// PS 
+				if (IsPS)
+				{
+					auto f2 = f;
+					f2.left += 10;
+					f2.right -= 10;
+					f2.top += (f2.bottom - f2.top) / 2 + 5;
+					f2.bottom = f2.top + 3;
+//					p->FillRectangle(f2, NoteBrush4);
+				}
+
 				// Velocity
-				if (ViewVelocity && (IsAfterTouch || (n.nonote == 0 && !n.HasMetaEvent)))
+				if (ViewVelocity && !IsPS && (IsAfterTouch || (n.nonote == 0 && !n.HasMetaEvent)))
 				{
 					auto f2 = f;
 					f2.left += 10;

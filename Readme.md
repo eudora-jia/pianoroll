@@ -27,6 +27,8 @@ A flexible, featured pianoroll control, using Direct2D to paint.
 * Non-note MIDI notes
 * Meta events (Raw hex and specific items)
 * Aftertouch events
+* Pitch shift events
+
 
 ## Callbacks
 Your callbacks are notified when:
@@ -42,6 +44,7 @@ Your callbacks are notified when:
 * Shift+1,2,3,4 (up row) : Beat duration 1/8, 1/16, 1/32,  1/64
 * < and > : Change selected items velocity
 * Ctrl+ < and > : Velocity off/full
+* < and > when pitch shift: Up/Down pitch shift (combine with Ctrl/Shift/Alt)
 * +/- : Change selected items position diatonically
 * Shift +/- : Change selected items position chromatically
 * Numpad +/-/* : Zoom in,out,all
